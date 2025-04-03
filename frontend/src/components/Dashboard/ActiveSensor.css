@@ -1,0 +1,207 @@
+.active-sensor-bank {
+    padding: 20px;
+    text-align: left; /* 🧼 Prevent global centering */
+}
+
+  .sensor-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr); /* 🖥️ 6 columns on full screen */
+    gap: 20px;
+    padding: 20px;
+}
+
+  
+
+
+.sensor-card {
+    background-color: white;
+    color: black;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 250px;
+    min-height: 170px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* ✅ Sensor Status with Animation */
+.sensor-status {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.active-status {
+    color: green;
+    display: flex;
+    align-items: center;
+}
+
+.inactive-status {
+    color: red;
+    display: flex;
+    align-items: center;
+}
+
+.active-icon {
+    color: green;
+    margin-right: 5px;
+    animation: pulse 1.5s infinite alternate;
+}
+
+.inactive-icon {
+    color: red;
+    margin-right: 5px;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.2); opacity: 0.8; }
+}
+
+/* ✅ Dropdown Menu */
+.dropdown {
+    position: relative;
+    display: inline-block;
+    width: 80%;
+}
+
+.dropdown-button {
+    background-color: #ffcc00;
+    color: black;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 5px;
+    width: 100%;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: white;
+    min-width: 100%;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    z-index: 1;
+}
+
+.dropdown-content button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.dropdown-content button:hover {
+    background-color: #f1f1f1;
+}
+
+/* ✅ Show dropdown on hover */
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+button:disabled {
+    background-color: #eee;
+    color: #888;
+    cursor: not-allowed;
+  }
+  
+  .confirm-button {
+    background-color: #28a745;
+    color: white;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+    width: 100%;
+}
+
+.confirm-button:hover {
+    background-color: #218838;
+}
+
+.stop-button {
+    background-color: #dc3545;
+    color: white;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+    width: 100%;
+    opacity: 0.7;
+}
+
+.stop-button:enabled {
+    opacity: 1;
+}
+
+.stop-button:hover:enabled {
+    background-color: #c82333;
+}
+
+.close-button {
+    margin-top: 15px;
+    background-color: #f44336;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    width: 100%;
+}
+
+.pulsating-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #00ff00;
+    animation: pulse 1s infinite;
+    margin-bottom: 5px;
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  
+
+  .dropdown-content button:disabled {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  
+
+@media (max-width: 1400px) {
+    .sensor-grid {
+        grid-template-columns: repeat(4, 1fr); /* 🧠 Medium laptop screens */
+    }
+}
+
+@media (max-width: 1024px) {
+    .sensor-grid {
+        grid-template-columns: repeat(2, 1fr); /* 📱 Tablets */
+    }
+}
+
+@media (max-width: 600px) {
+    .sensor-grid {
+        grid-template-columns: 1fr; /* 📱 Mobiles */
+    }
+}

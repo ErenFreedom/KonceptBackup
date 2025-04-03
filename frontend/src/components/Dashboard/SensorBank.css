@@ -1,0 +1,221 @@
+.sensor-bank {
+    text-align: center;
+    padding: 20px;
+}
+
+.sensor-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* 🖥️ Default: 4 columns */
+    gap: 20px;
+    padding: 20px;
+}
+
+
+/* ✅ Sensor Card Styling */
+.sensor-card {
+    background-color: white;
+    color: black;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 250px;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s ease-in-out;
+}
+
+.sensor-card:hover {
+    transform: scale(1.05);
+}
+
+/* ✅ Active Sensor Indicator */
+.sensor-active {
+    color: green;
+    font-weight: bold;
+    animation: blink-animation 1s infinite alternate;
+}
+
+@keyframes blink-animation {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0.5;
+    }
+}
+
+/* ✅ Add Sensor Button Styling */
+.add-sensor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f0f0;
+    min-height: 150px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-weight: bold;
+    font-size: 16px;
+    position: relative;
+}
+
+
+.add-sensor:hover {
+    background-color: #e0e0e0;
+}
+
+.plus-sign {
+    font-size: 36px;  /* Bigger "+" symbol */
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+.add-text {
+    font-size: 16px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* ✅ Dropdown Menu */
+.dropdown {
+    position: relative;
+    display: inline-block;
+    width: 80%;
+}
+
+.dropdown-button {
+    background-color: #ffcc00;
+    color: black;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 5px;
+    width: 100%;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: white;
+    min-width: 100%;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    z-index: 1;
+}
+
+.dropdown-content button:disabled {
+    background-color: #e0e0e0;
+    color: #999;
+    cursor: not-allowed;
+}
+
+
+.dropdown-content button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.dropdown-content button:hover {
+    background-color: #f1f1f1;
+}
+
+/* ✅ Show dropdown on hover */
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+/* ✅ Modal for Adding Sensor */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ✅ Modal Content */
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    width: 400px;
+    color: black;
+    font-size: 16px;
+}
+
+/* ✅ Input Fields in Modal */
+.modal-content input {
+    width: 90%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+/* ✅ Confirm Button */
+.confirm-button {
+    background-color: green;
+    color: white;
+    padding: 10px;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+    border-radius: 5px;
+    width: 100%;
+}
+
+.confirm-button:hover {
+    background-color: darkgreen;
+}
+
+/* ✅ Close Button */
+.close-button {
+    background-color: red;
+    color: white;
+    padding: 8px;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+    border-radius: 5px;
+    width: 100%;
+}
+
+.close-button:hover {
+    background-color: darkred;
+}
+
+
+.active-indicator {
+    color: #00ff88;
+    margin-left: 6px;
+    font-size: 1.2rem;
+    vertical-align: middle;
+}
+
+  
+
+@media (max-width: 1024px) {
+    .sensor-grid {
+        grid-template-columns: repeat(2, 1fr); /* 2 columns */
+    }
+}
+
+/* 📱 For screens smaller than 600px (e.g. mobile) */
+@media (max-width: 600px) {
+    .sensor-grid {
+        grid-template-columns: 1fr; /* 1 column */
+    }
+}

@@ -1,0 +1,293 @@
+/* Full-screen black background */
+.login-container {
+    height: 100vh;
+    width: 100vw;
+    background-color: black;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Header Section */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    width: 100%;
+    height: 80px;
+}
+
+/* Logo Styling - Extreme Left */
+.logo-container {
+    flex-grow: 1;
+}
+
+.logo {
+    width: 200px;
+    height: auto;
+}
+
+/* Button Container - Extreme Right */
+.button-container {
+    display: flex;
+    gap: 20px;
+    justify-content: flex-end;
+    margin-right: 70px;
+}
+
+/* Button Styling */
+.button-81 {
+    background-color: #fff;
+    border: 0 solid #e2e8f0;
+    border-radius: 1.5rem;
+    color: #0d172a;
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 1rem 1.6rem;
+    transition: all 0.1s ease-in-out;
+    box-shadow: 0px 1px 2px rgba(166, 175, 195, 0.25);
+}
+
+.button-81:hover {
+    background-color: #1e293b;
+    color: #fff;
+}
+
+/* Content Layout - Form Left, Slideshow Right */
+.content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-grow: 1;
+    padding: 40px;
+}
+
+/* Left Side - Login Form (Stacked Fields) */
+.login-form {
+    flex: 1;
+    text-align: left;
+    padding-left: 100px;
+    font-size: 1.5rem;
+    max-width: 40%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Login Form Heading */
+.login-form h2 {
+    font-size: 2rem;
+    margin-bottom: 20px;
+}
+
+/* Input Fields - Grouped */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Input Fields */
+.input-field {
+    width: 300px;
+    padding: 12px;
+    font-size: 1rem;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    background: white;
+    color: black;
+}
+
+.input-field:focus {
+    border: 2px solid #1e293b;
+}
+
+/* Login Button */
+.login-form button {
+    width: 300px;
+    padding: 12px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    background-color: #fff;
+    color: #0d172a;
+    transition: all 0.3s ease-in-out;
+    box-shadow: 0px 1px 2px rgba(166, 175, 195, 0.25);
+    margin-top: 10px;
+}
+
+.login-form button:hover {
+    background-color: #1e293b;
+    color: #fff;
+}
+
+/* Right Side - Image Slideshow */
+.image-slideshow {
+    flex: 1;
+    text-align: center; /* Center align text and image */
+    padding-right: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Slideshow Image */
+.slideshow-image {
+    width: 700px;
+    height: auto;
+    max-width: 100%;
+    transition: opacity 0.5s ease-in-out;
+    border-radius: 10px;
+}
+
+/* Slideshow Text */
+.slideshow-text {
+    font-size: 1.5rem;
+    margin-top: 10px;
+    color: #fff;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* Loading Spinner Animation */
+.loading-spinner {
+    margin-top: 15px;
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Success Container */
+.success-container {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Green Success Check Icon */
+.success-icon {
+    color: #4CAF50;
+    font-size: 2rem;
+}
+
+/* Success Text */
+.success-text {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #4CAF50;
+    margin-top: 5px;
+}
+
+/* Fade-in Animation for Success */
+@keyframes fadeIn {
+    0% { opacity: 0; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 20px;
+    background-color: black;
+    color: white;
+    margin-top: auto;
+}
+
+.footer h2 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+}
+
+.social-icons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.icon {
+    font-size: 2rem;
+    color: white;
+    transition: color 0.3s ease-in-out;
+}
+
+.icon:hover {
+    color: #1da1f2; /* Twitter blue */
+}
+
+/* Prevent Scrolling */
+body, html {
+    overflow: hidden;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* Loading & Success Container */
+.loading-success-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 10px;
+    gap: 15px; /* Space between spinner and success message */
+}
+
+/* Loading Spinner (Left) */
+.loading-spinner {
+    width: 30px;
+    height: 30px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Success Container (Right) */
+.success-container {
+    display: flex;
+    align-items: center;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Green Checkmark Icon */
+.success-icon {
+    color: #4CAF50;
+    font-size: 1.5rem;
+    margin-right: 5px;
+}
+
+/* Success Text */
+.success-text {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #4CAF50;
+}
+
+/* Spinner Animation */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Fade-in Animation for Success */
+@keyframes fadeIn {
+    0% { opacity: 0; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+}
