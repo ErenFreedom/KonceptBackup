@@ -1,17 +1,11 @@
 const axios = require("axios");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
 const jwt = require("jsonwebtoken");
 const { db, createSensorDataTable } = require("../db/sensorDB"); 
 
 
 require("dotenv").config();
 
-// ✅ Local Database Path
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-console.log(`📌 Using database path: ${dbPath}`);
 
-// ✅ Open Local Database
 
 
 /** ✅ Function to Fetch Latest Token from Local DB */

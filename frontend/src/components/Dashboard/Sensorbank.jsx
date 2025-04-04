@@ -199,10 +199,10 @@ const SensorBank = () => {
       toast.error("All fields are required!");
       return;
     }
-
+  
     try {
       const token = localStorage.getItem("adminToken");
-
+  
       const response = await axios.post(
         "http://localhost:5004/api/sensor/add",
         {
@@ -218,29 +218,25 @@ const SensorBank = () => {
           },
         }
       );
-
+  
       console.log("✅ Sensor Add Response:", response.data);
-
+  
       if (response.data?.message?.includes("successfully")) {
         toast.success("Sensor added successfully!");
-
+  
         // ✅ Clear modal inputs and close
         setSensorApi("");
         setSensorName("");
         setRateLimit("");
         setShowAddModal(false);
-
+  
         // ✅ Re-fetch updated sensor list
-        const fetchUpdatedSensors = async () => {
-          const updated = await axios.get("http://localhost:5004/api/sensor/", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-
-          const updatedList = updated.data?.sensors?.sensors || updated.data?.sensors || [];
-          setSensors(updatedList);
-        };
-
-        await fetchUpdatedSensors();
+        const updated = await axios.get("http://localhost:5004/api/sensor/", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+  
+        const updatedList = updated.data?.sensors?.sensors || updated.data?.sensors || [];
+        setSensors(updatedList);
       } else {
         toast.error("Sensor added but UI update failed.");
       }
@@ -249,7 +245,6 @@ const SensorBank = () => {
       toast.error("Failed to add sensor.");
     }
   };
-
 
 
   // ✅ Show Sensor Info

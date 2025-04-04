@@ -2,7 +2,7 @@
   "name": "connector-backend",
   "version": "1.0.0",
   "description": "Backend API for Connector App",
-  "author": "YourName",
+  "author": "Kartik",
   "license": "MIT",
   "main": "server.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "fs": "^0.0.1-security",
     "https": "^1.0.0",
     "jsonwebtoken": "^9.0.2",
+    "os": "^0.1.2",
     "path": "^0.12.7",
     "sqlite3": "^5.1.7"
   }

@@ -1,18 +1,12 @@
 const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
-const fs = require('fs');
+const dbPath = require("./dbPath"); // ✅ Import shared DB path
 
-
-const dbPath = path.join(__dirname, "localDB.sqlite");
-console.log("📌 Using database path:", dbPath);
-
-
-// ✅ Open SQLite Database
+// ✅ Open or create the SQLite DB at AppData
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error("❌ Error opening database:", err.message);
     } else {
-        console.log("✅ Connected to Local SQLite Database.");
+        console.log("✅ Local database connected.");
     }
 });
 

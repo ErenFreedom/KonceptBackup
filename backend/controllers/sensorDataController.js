@@ -1,19 +1,4 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
-
-// ✅ Ensure correct database path
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-console.log(`📌 Using database path: ${dbPath}`);
-
-// ✅ Open Local Database
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-    if (err) {
-        console.error("❌ Error opening database:", err.message);
-    } else {
-        console.log("✅ Connected to Local SQLite Database.");
-    }
-});
-
+const { db } = require("../db/sensorDB"); // ✅ use your shared instance
 /** ✅ Fetch All Sensors from LocalSensorBank */
 const getLocalSensors = (req, res) => {
     console.log("🔍 Fetching sensors from LocalSensorBank");

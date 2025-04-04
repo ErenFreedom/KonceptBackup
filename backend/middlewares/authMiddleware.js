@@ -1,14 +1,7 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+
 require("dotenv").config();
 
-// ✅ Correct database path
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-console.log(`📌 Using database path: ${dbPath}`);
-
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) console.error("❌ Error opening database:", err.message);
-});
+const  db  = require("../db/localDB"); // or sensorDB if that's where AuthTokens is
 
 /** ✅ Function to Fetch Latest Token from Local DB */
 const getStoredToken = () => {
@@ -28,32 +21,46 @@ const getStoredToken = () => {
 };
 
 /** ✅ Middleware: Only Check if Token Exists */
+/** ✅ Middleware: Check if provided token matches stored token */
 const verifyAuthToken = async (req, res, next) => {
     try {
-        const token = req.headers.authorization?.split(" ")[1]; // Extract Bearer Token
+        const rawAuthHeader = req.headers.authorization;
 
-        if (!token) {
-            console.error("❌ Token missing in request");
-            return res.status(401).json({ message: "Unauthorized: Token missing" });
+        if (!rawAuthHeader) {
+            console.error("❌ No Authorization header received.");
+            return res.status(401).json({ message: "Unauthorized: No token provided" });
         }
 
-        //console.log(`🔍 Received Token from Request: ${token}`); // Debugging
+        // ✅ Accept either "Bearer <token>" or raw token
+        const token = rawAuthHeader.startsWith("Bearer ")
+            ? rawAuthHeader.split(" ")[1]
+            : rawAuthHeader;
 
-        // ✅ Fetch stored JWT from localDB
+        if (!token) {
+            console.error("❌ Token extraction failed from Authorization header.");
+            return res.status(401).json({ message: "Unauthorized: Invalid token format" });
+        }
+
+        // ✅ Fetch latest stored token from local DB
         let storedToken;
         try {
             storedToken = await getStoredToken();
-        } catch (error) {
-            return res.status(401).json({ message: "Unauthorized: Token missing or invalid" });
+        } catch (err) {
+            console.error("❌ Could not retrieve stored token from DB:", err);
+            return res.status(500).json({ message: "Server error while verifying token" });
         }
 
-        // ✅ Allow access if a token exists
-        //console.log(`✅ Token exists in DB. Allowing request.`);
-        req.user = { token: storedToken }; // Just attach token reference (no verification)
+        if (storedToken !== token) {
+            console.warn("❌ Provided token does not match stored token.");
+            return res.status(401).json({ message: "Unauthorized: Token mismatch" });
+        }
+
+        // ✅ Token matches DB, continue
+        req.user = { token }; // attach raw token if needed later
         next();
     } catch (error) {
-        console.error("❌ Authentication failed:", error.message);
-        res.status(403).json({ message: "Forbidden: Invalid or expired token" });
+        console.error("❌ Token verification failed:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
 

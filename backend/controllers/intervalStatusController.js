@@ -1,8 +1,5 @@
-const path = require("path");
-const sqlite3 = require("sqlite3").verbose();
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-const db = new sqlite3.Database(dbPath);
 
+const { db } = require("../db/sensorDB"); // ✅ use your shared instance
 const getIntervalStatus = (req, res) => {
   db.all("SELECT * FROM IntervalControl", [], (err, rows) => {
     if (err) {

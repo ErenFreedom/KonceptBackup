@@ -1,19 +1,11 @@
 const axios = require("axios");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+
+
 const jwt = require("jsonwebtoken");
 const { insertLog } = require("../utils/logHelpers");
 require("dotenv").config();
 
-// ✅ Local Database Path
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-console.log(`📌 Using database path: ${dbPath}`);
-
-// ✅ Open Local Database
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
-    if (err) console.error("❌ Error opening database:", err.message);
-    else console.log("✅ Connected to Local SQLite Database.");
-});
+const { db } = require("../db/sensorDB"); // ✅ use your shared instance
 
 // ✅ Create IntervalControl Table (referencing LocalSensorBank)
 db.run(`

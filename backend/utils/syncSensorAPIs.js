@@ -1,11 +1,5 @@
 const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
-
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
-  if (err) return console.error("❌ DB Error:", err.message);
-  console.log("✅ Connected to local DB");
-});
+const { db } = require("../db/sensorDB"); // or localDB, whichever contains SensorLogs table
 
 // ✅ Fetch all active sensors
 db.all("SELECT bank_id FROM LocalActiveSensors", [], (err, activeSensors) => {

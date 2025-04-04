@@ -1,18 +1,11 @@
 const axios = require("axios");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
 const jwt = require("jsonwebtoken");
 const { insertLog } = require("../utils/logHelpers");
 const https = require("https");
 const agent = new https.Agent({ rejectUnauthorized: false });
+const { db } = require("../db/sensorDB"); // ✅ use your shared instance
 
 
-// ✅ DB Path & Connection
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
-    if (err) console.error("❌ Error opening database:", err.message);
-    else console.log("✅ Connected to Local SQLite Database.");
-});
 
 /** ✅ Fetch Auth Token from Local DB */
 const getStoredToken = () => {

@@ -1,10 +1,5 @@
 // utils/logHelpers.js
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
-
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE);
-
+const { db } = require("../db/sensorDB"); // or localDB, whichever contains SensorLogs table
 /** ✅ Log Insert Helper */
 const insertLog = (sensor_id, logMessage) => {
   const insertQuery = `

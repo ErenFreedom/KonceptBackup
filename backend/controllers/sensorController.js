@@ -1,27 +1,12 @@
 const axios = require("axios");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+
 const https = require("https");
 require("dotenv").config();
 const { updateLocalSensorIds } = require("../utils/syncLocalSensorIds");
 
 const agent = new https.Agent({ rejectUnauthorized: false });
 
-// ✅ Ensure correct database path
-const dbPath = path.resolve(__dirname, "../db/localDB.sqlite");
-console.log(`📌 Using database path: ${dbPath}`);
-
-// ✅ Open Local Database
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) console.error("❌ Error opening database:", err.message);
-    else {
-        db.run("PRAGMA foreign_keys = ON;", (err) => {
-            if (err) console.error("❌ Failed to enable foreign keys:", err.message);
-            else console.log("✅ Foreign keys enabled.");
-        });
-    }
-});
-
+const { db } = require("../db/sensorDB"); // ✅ use your shared instance
 
 /** ✅ Function to Fetch Latest Token from Local DB */
 const getStoredToken = () => {
@@ -42,118 +27,123 @@ const getStoredToken = () => {
 /** ✅ Add a Sensor (Connector Backend → Cloud Backend + Local DB) */
 const addSensor = async (req, res) => {
     try {
-        const { sensorApi, sensorName, rateLimit } = req.body;
-
-        if (!sensorApi || !sensorName || !rateLimit) {
-            return res.status(400).json({ message: "Sensor API, name, and rate limit are required" });
-        }
-
-        // ✅ Fetch stored cloud JWT
-        let cloudToken;
-        try {
-            cloudToken = await getStoredToken();
-            console.log(`🔐 Using Cloud Token: ${cloudToken}`);
-        } catch (error) {
-            return res.status(401).json({ message: "Unauthorized: Cloud token missing or invalid" });
-        }
-
-        // ✅ Fetch Desigo token from request header
-        const desigoAuthHeader = req.headers["desigo-authorization"];
-        const desigoToken = desigoAuthHeader && desigoAuthHeader.split(" ")[1];
-        if (!desigoToken) {
-            return res.status(401).json({ message: "Unauthorized: Desigo token missing" });
-        }
-
-        // ✅ Verify sensor API is accessible
-        let sensorData;
-        try {
-            console.log(`🔍 Fetching Sensor Data from: ${sensorApi}`);
-            const response = await axios.get(sensorApi, {
-                headers: { Authorization: `Bearer ${desigoToken}` },
-                httpsAgent: agent // ✅ This allows self-signed SSL
-            });
-
-            sensorData = response.data;
-            console.log(`✅ Sensor Data Received:`, sensorData);
-        } catch (error) {
-            console.error("❌ Invalid Sensor API:", error.message);
-            return res.status(400).json({ message: "Invalid Sensor API. No response received." });
-        }
-
-        // ✅ Extract required Desigo fields
-        if (!sensorData || !sensorData[0]?.DataType || !sensorData[0]?.ObjectId || !sensorData[0]?.PropertyName) {
-            console.error("❌ Invalid sensor API response format:", sensorData);
-            return res.status(400).json({ message: "Invalid sensor API response format" });
-        }
-
-        const { DataType, ObjectId, PropertyName } = sensorData[0];
-
-        // ✅ Push to Cloud
-        const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensor-bank/add`;
-        let cloudResponse;
-        try {
-            cloudResponse = await axios.post(cloudApiUrl, {
-                sensorName,
-                description: `Sensor added via Connector App`,
-                objectId: ObjectId,
-                propertyName: PropertyName,
-                dataType: DataType,
-                isActive: false
-            }, {
-                headers: { Authorization: `Bearer ${cloudToken}` }
-            });
-
-            console.log("✅ Sensor added to Cloud:", cloudResponse.data);
-        } catch (error) {
-            console.error("❌ Failed to add sensor to cloud:", error.response?.data || error.message);
-            return res.status(500).json({
-                message: "Failed to add sensor to cloud",
-                error: error.response?.data || error.message
-            });
-        }
-
-        // ✅ Insert into Local DB
-        db.serialize(() => {
-            const insertSensorQuery = `
-                INSERT INTO LocalSensorBank (name, description, object_id, property_name, data_type, is_active)
-                VALUES (?, ?, ?, ?, ?, 0)
-            `;
-            db.run(insertSensorQuery, [sensorName, "Sensor added via Connector App", ObjectId, PropertyName, DataType], function (err) {
-                if (err) {
-                    console.error("❌ Error inserting into LocalSensorBank:", err.message);
-                    return res.status(500).json({ message: "Failed to insert sensor locally" });
-                }
-
-                const newSensorId = this.lastID;
-                console.log(`✅ Sensor inserted with ID: ${newSensorId}`);
-
-                const insertApiQuery = `
-                    INSERT INTO LocalSensorAPIs (sensor_id, api_endpoint)
-                    VALUES (?, ?)
-                `;
-                db.run(insertApiQuery, [newSensorId, sensorApi], async (err) => {
-                    if (err) {
-                        console.error("❌ Error inserting into LocalSensorAPIs:", err.message);
-                    } else {
-                        console.log(`✅ API for sensor ${newSensorId} stored in LocalSensorAPIs.`);
-                        await updateLocalSensorIds(); // optional: sync with memory
-                    }
-                });
-
-                return res.status(200).json({
-                    message: "Sensor added successfully",
-                    sensorId: newSensorId,
-                    cloudResponse: cloudResponse.data
-                });
-            });
+      const { sensorApi, sensorName, rateLimit } = req.body;
+  
+      if (!sensorApi || !sensorName || !rateLimit) {
+        return res.status(400).json({ message: "Sensor API, name, and rate limit are required" });
+      }
+  
+      // ✅ Get Cloud Token
+      let cloudToken;
+      try {
+        cloudToken = await getStoredToken();
+        console.log(`🔐 Using Cloud Token: ${cloudToken}`);
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized: Cloud token missing or invalid" });
+      }
+  
+      // ✅ Get Desigo Token from Local DB
+      let desigoToken;
+      try {
+        desigoToken = await new Promise((resolve, reject) => {
+          db.get("SELECT token FROM DesigoAuthTokens ORDER BY id DESC LIMIT 1", [], (err, row) => {
+            if (err || !row?.token) {
+              console.error("❌ Failed to fetch Desigo token:", err?.message || "No token found");
+              return reject("Desigo token not found");
+            }
+            resolve(row.token);
+          });
         });
-
+        console.log("✅ Desigo Token Fetched from DB");
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized: Desigo token missing or invalid" });
+      }
+  
+      // ✅ Fetch Sensor Data from API
+      let sensorData;
+      try {
+        console.log(`🔍 Fetching Sensor Data from: ${sensorApi}`);
+        const response = await axios.get(sensorApi, {
+          headers: { Authorization: `Bearer ${desigoToken}` },
+          httpsAgent: agent,
+        });
+        sensorData = response.data;
+      } catch (error) {
+        console.error("❌ Invalid Sensor API:", error.message);
+        return res.status(400).json({ message: "Invalid Sensor API. No response received." });
+      }
+  
+      if (!sensorData || !sensorData[0]?.DataType || !sensorData[0]?.ObjectId || !sensorData[0]?.PropertyName) {
+        return res.status(400).json({ message: "Invalid sensor API response format" });
+      }
+  
+      const { DataType, ObjectId, PropertyName } = sensorData[0];
+  
+      // ✅ Push to Cloud
+      const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensor-bank/add`;
+      let cloudResponse;
+      try {
+        cloudResponse = await axios.post(cloudApiUrl, {
+          sensorName,
+          description: `Sensor added via Connector App`,
+          objectId: ObjectId,
+          propertyName: PropertyName,
+          dataType: DataType,
+          isActive: false,
+        }, {
+          headers: { Authorization: `Bearer ${cloudToken}` },
+        });
+  
+        console.log("✅ Sensor added to Cloud:", cloudResponse.data);
+      } catch (error) {
+        console.error("❌ Failed to add sensor to cloud:", error.response?.data || error.message);
+        return res.status(500).json({
+          message: "Failed to add sensor to cloud",
+          error: error.response?.data || error.message
+        });
+      }
+  
+      // ✅ Insert into Local DB
+      db.serialize(() => {
+        const insertSensorQuery = `
+          INSERT INTO LocalSensorBank (name, description, object_id, property_name, data_type, is_active)
+          VALUES (?, ?, ?, ?, ?, 0)
+        `;
+        db.run(insertSensorQuery, [sensorName, "Sensor added via Connector App", ObjectId, PropertyName, DataType], function (err) {
+          if (err) {
+            console.error("❌ Error inserting into LocalSensorBank:", err.message);
+            return res.status(500).json({ message: "Failed to insert sensor locally" });
+          }
+  
+          const newSensorId = this.lastID;
+          console.log(`✅ Sensor inserted with ID: ${newSensorId}`);
+  
+          const insertApiQuery = `
+            INSERT INTO LocalSensorAPIs (sensor_id, api_endpoint)
+            VALUES (?, ?)
+          `;
+          db.run(insertApiQuery, [newSensorId, sensorApi], async (err) => {
+            if (err) {
+              console.error("❌ Error inserting into LocalSensorAPIs:", err.message);
+            } else {
+              console.log(`✅ API for sensor ${newSensorId} stored in LocalSensorAPIs.`);
+              await updateLocalSensorIds();
+            }
+          });
+  
+          return res.status(200).json({
+            message: "Sensor added successfully",
+            sensorId: newSensorId,
+            cloudResponse: cloudResponse.data
+          });
+        });
+      });
+  
     } catch (error) {
-        console.error("❌ Error adding sensor:", error);
-        return res.status(500).json({ message: "Internal Server Error", error: error.message });
+      console.error("❌ Error adding sensor:", error);
+      return res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
-};
-
+  };
 
 
 /** ✅ Delete a Sensor (Connector Requests Cloud to Delete + Remove from Local DB) */
