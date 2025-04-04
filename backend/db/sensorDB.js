@@ -7,6 +7,12 @@ const db = new sqlite3.Database(dbPath, (err) => {
         console.error("❌ Error opening database:", err.message);
     } else {
         console.log("✅ Local database connected.");
+    
+        // ✅ Enable foreign keys
+        db.run("PRAGMA foreign_keys = ON", (err) => {
+            if (err) console.error("❌ Failed to enable foreign keys:", err.message);
+            else console.log("🔗 Foreign key enforcement is ON");
+        });
     }
 });
 
@@ -29,7 +35,7 @@ const createSensorBankTable = `
 const createActiveSensorsTable = `
     CREATE TABLE IF NOT EXISTS LocalActiveSensors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        bank_id INTEGER NOT NULL,
+        bank_id INTEGER NOT NULL UNIQUE,  -- ✅ Add UNIQUE here!
         mode TEXT CHECK( mode IN ('real_time', 'manual') ) NOT NULL,
         interval_seconds INTEGER CHECK( interval_seconds >= 5 AND interval_seconds <= 100 ),
         batch_size INTEGER DEFAULT 1,
@@ -45,7 +51,7 @@ const createSensorAPITable = `
     CREATE TABLE IF NOT EXISTS LocalSensorAPIs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sensor_id INTEGER NOT NULL,
-        sensor_api TEXT NOT NULL UNIQUE,
+        api_endpoint TEXT NOT NULL UNIQUE,  -- ✅ Rename this
         FOREIGN KEY (sensor_id) REFERENCES LocalSensorBank(id) ON DELETE CASCADE
     );
 `;

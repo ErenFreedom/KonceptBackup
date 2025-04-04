@@ -1,6 +1,4 @@
-const sqlite3 = require("sqlite3").verbose();
-const { db } = require("../db/sensorDB"); // or localDB, whichever contains SensorLogs table
-
+const { db } = require("../db/sensorDB");
 // ✅ Fetch all active sensors
 db.all("SELECT bank_id FROM LocalActiveSensors", [], (err, activeSensors) => {
   if (err) return console.error("❌ Failed to read LocalActiveSensors:", err.message);
