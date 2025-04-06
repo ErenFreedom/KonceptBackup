@@ -1,7 +1,11 @@
 @echo off
 cd /d "%~dp0"
-echo 🔁 Running Sensor API Sync...
-start "" nodejs\node.exe utils\syncSensorAPIs.js
+
+echo 🔁 Syncing Local SensorBank IDs with Cloud...
+nodejs\node.exe utils\syncLocalSensorIds.js
+
+echo 🔁 Syncing LocalSensorAPIs...
+nodejs\node.exe utils\syncSensorAPIs.js
 
 timeout /t 2 >nul
 
