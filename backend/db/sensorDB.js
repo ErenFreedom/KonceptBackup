@@ -51,7 +51,7 @@ const createSensorAPITable = `
     CREATE TABLE IF NOT EXISTS LocalSensorAPIs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sensor_id INTEGER NOT NULL,
-        api_endpoint TEXT NOT NULL UNIQUE,  -- ✅ Rename this
+        api_endpoint TEXT NOT NULL,
         FOREIGN KEY (sensor_id) REFERENCES LocalSensorBank(id) ON DELETE CASCADE
     );
 `;

@@ -174,22 +174,20 @@ const SensorBank = () => {
 
 
   useEffect(() => {
-    const fetchLocalSensorAPIs = async () => {
+    const fetchAPIEndpointsOnly = async () => {
       try {
         const token = localStorage.getItem("adminToken");
-        const response = await axios.get("http://localhost:5004/api/sensor/localAPIs", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const response = await axios.get("http://localhost:5004/api/sensor/localAPIs/only", {
+          headers: { Authorization: `Bearer ${token}` },
         });
-
-        setLocalSensorsWithAPI(response.data?.sensors || []);
+  
+        setLocalSensorsWithAPI(response.data?.sensor_apis || []);
       } catch (error) {
-        console.error("❌ Failed to fetch local sensor APIs:", error.response?.data || error.message);
+        console.error("❌ Failed to fetch API endpoints only:", error.response?.data || error.message);
       }
     };
-
-    fetchLocalSensorAPIs();
+  
+    fetchAPIEndpointsOnly();
   }, []);
 
 
@@ -250,7 +248,7 @@ const SensorBank = () => {
   // ✅ Show Sensor Info
   const showInfo = (sensor) => {
     // 🔍 Try to find the matching API using sensor.id
-    const localMatch = localSensorsWithAPI.find((s) => s.id === sensor.id);
+    const localMatch = localSensorsWithAPI.find((s) => s.sensor_id === sensor.id);
 
     // 🧠 Merge the API into the selected sensor object
     setSelectedSensor({ ...sensor, api_endpoint: localMatch?.api_endpoint || "Not Available" });

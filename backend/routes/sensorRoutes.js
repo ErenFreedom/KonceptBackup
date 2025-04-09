@@ -1,7 +1,7 @@
 const express = require("express");
 const { verifyAuthToken } = require("../middlewares/authMiddleware"); // ✅ Existing Login Token Middleware
 const { verifyDesigoAuthToken } = require("../middlewares/desigoAuthMiddleware"); // ✅ NEW Desigo Token Middleware
-const { addSensor, getAllSensors, deleteSensor, getStoredDesigoToken, getAllLocalSensorsWithAPI } = require("../controllers/sensorController");
+const { addSensor, getAllSensors, deleteSensor, getStoredDesigoToken, getAllLocalSensorsWithAPI, getAllLocalAPIEndpoints } = require("../controllers/sensorController");
 
 const router = express.Router();
 
@@ -11,6 +11,7 @@ router.get("/", verifyAuthToken, getAllSensors); // ✅ Protected Route (Fetch A
 router.delete("/:id", verifyAuthToken, deleteSensor); // ✅ Protected Route (Delete a Sensor)
 router.get("/desigo-token",verifyAuthToken, getStoredDesigoToken);
 router.get("/localAPIs",verifyAuthToken, getAllLocalSensorsWithAPI);
+router.get("/localAPIs/only", verifyAuthToken, getAllLocalAPIEndpoints);
 
 
 module.exports = router;

@@ -1,7 +1,7 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
 const { db, createSensorDataTable } = require("../db/sensorDB"); 
-
+const { syncAllSensorTables } = require("../utils/syncAllSensorTables");
 
 require("dotenv").config();
 
@@ -48,84 +48,87 @@ const getCompanyIdFromToken = () => {
 /** ✅ Activate Sensor (Connector Sends Request to Cloud + Updates Local DB) */
 const activateSensor = async (req, res) => {
     try {
-        const { sensorId, interval_seconds, batch_size } = req.body;
-        if (!sensorId) {
-            return res.status(400).json({ message: "Sensor ID is required" });
-        }
-
-        // ✅ Get companyId from JWT
-        let companyId;
-        try {
-            companyId = await getCompanyIdFromToken();
-        } catch (error) {
-            return res.status(401).json({ message: "Unauthorized: Failed to fetch company ID" });
-        }
-
-        // ✅ Set default values if not provided
-        const interval = interval_seconds ?? 10;
-        const batch = batch_size ?? 1;
-
-        // ✅ Fetch stored JWT from local DB
-        let token;
-        try {
-            token = await getStoredToken();
-            console.log(`🔍 Using Token: ${token}`);
-        } catch (error) {
-            return res.status(401).json({ message: "Unauthorized: Token missing or invalid" });
-        }
-
-        console.log(`📤 Sending Activation Request with Token: ${token}`);
-
-        // ✅ Send activation request to Cloud Backend
-        const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensors/activate`;
-        console.log(`📤 Activating Sensor in Cloud: ${cloudApiUrl}`);
-
-        try {
-            const cloudResponse = await axios.post(cloudApiUrl, { sensorId, companyId }, { 
-                headers: { Authorization: `Bearer ${token}` } 
-            });
-
-            console.log("✅ Sensor activated successfully in Cloud:", cloudResponse.data);
-
-            // ✅ Insert or update in Local DB (LocalActiveSensors)
-            db.run(
-                `INSERT INTO LocalActiveSensors (bank_id, is_active, mode, interval_seconds, batch_size)
-                 VALUES (?, 1, 'manual', ?, ?)
-                 ON CONFLICT(bank_id) DO UPDATE SET 
-                    is_active = 1, 
-                    mode = 'manual', 
-                    interval_seconds = excluded.interval_seconds,
-                    batch_size = excluded.batch_size`,
-                [sensorId, interval, batch],
-                async (err) => {
-                    if (err) {
-                        console.error("❌ Error inserting into Local DB:", err.message);
-                    } else {
-                        console.log(`✅ Sensor ${sensorId} activated in Local DB with Interval ${interval}s and Batch ${batch}.`);
-
-                        // ✅ Create Dynamic Table for Sensor Data (Format: SensorData_CompanyId_SensorId)
-                        const sensorTableName = `SensorData_${companyId}_${sensorId}`;
-                        console.log(`📌 Creating sensor data table: ${sensorTableName}`);
-                        await createSensorDataTable(companyId, sensorId);
-                    }
-                }
-            );
-
-            res.status(200).json({ 
-                message: "Sensor activated successfully", 
-                cloudResponse: cloudResponse.data,
-                settings: { interval_seconds: interval, batch_size: batch }
-            });
-        } catch (error) {
-            console.error("❌ Failed to activate sensor in Cloud:", error.response?.data || error.message);
-            res.status(500).json({ message: "Failed to activate sensor in Cloud", error: error.response?.data || error.message });
-        }
+      const { sensorId, interval_seconds, batch_size } = req.body;
+      if (!sensorId) {
+        return res.status(400).json({ message: "Sensor ID is required" });
+      }
+  
+      // ✅ Company ID
+      let companyId;
+      try {
+        companyId = await getCompanyIdFromToken();
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized: Failed to get company ID" });
+      }
+  
+      const interval = interval_seconds ?? 10;
+      const batch = batch_size ?? 1;
+  
+      // ✅ Auth Token
+      let token;
+      try {
+        token = await getStoredToken();
+        console.log(`🔍 Using Token: ${token}`);
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized: Token missing or invalid" });
+      }
+  
+      console.log(`📤 Sending Activation Request with Token: ${token}`);
+      const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensors/activate`;
+  
+      try {
+        const cloudResponse = await axios.post(
+          cloudApiUrl,
+          { sensorId, companyId },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+  
+        console.log("✅ Sensor activated successfully in Cloud:", cloudResponse.data);
+  
+        // ✅ Local DB Insert/Update
+        db.run(
+          `INSERT INTO LocalActiveSensors (bank_id, is_active, mode, interval_seconds, batch_size)
+           VALUES (?, 1, 'manual', ?, ?)
+           ON CONFLICT(bank_id) DO UPDATE SET 
+              is_active = 1, 
+              mode = 'manual', 
+              interval_seconds = excluded.interval_seconds,
+              batch_size = excluded.batch_size`,
+          [sensorId, interval, batch],
+          async (err) => {
+            if (err) {
+              console.error("❌ Error inserting into LocalActiveSensors:", err.message);
+            } else {
+              console.log(`✅ Sensor ${sensorId} activated in Local DB with Interval ${interval}s and Batch ${batch}.`);
+  
+              // ✅ Create dynamic table
+              const sensorTableName = `SensorData_${companyId}_${sensorId}`;
+              console.log(`📌 Creating sensor data table: ${sensorTableName}`);
+              await createSensorDataTable(companyId, sensorId);
+  
+              // ✅ Final Sync for all 4 tables
+              await syncAllSensorTables();
+            }
+          }
+        );
+  
+        res.status(200).json({
+          message: "Sensor activated successfully",
+          cloudResponse: cloudResponse.data,
+          settings: { interval_seconds: interval, batch_size: batch },
+        });
+      } catch (error) {
+        console.error("❌ Failed to activate sensor in Cloud:", error.response?.data || error.message);
+        res.status(500).json({
+          message: "Failed to activate sensor in Cloud",
+          error: error.response?.data || error.message,
+        });
+      }
     } catch (error) {
-        console.error("❌ Error activating sensor:", error);
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+      console.error("❌ Error activating sensor:", error);
+      res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
-};
-
+  };
 
 
 
@@ -204,75 +207,74 @@ const deactivateSensor = async (req, res) => {
 /** ✅ Remove Sensor (Connector Sends Request to Cloud + Deletes from Local DB) */
 const removeActiveSensor = async (req, res) => {
     try {
-        const { sensorId } = req.body;
-        if (!sensorId) {
-            return res.status(400).json({ message: "Sensor ID is required" });
-        }
-
-        // ✅ Get companyId from JWT
-        let companyId;
-        try {
-            companyId = await getCompanyIdFromToken();
-        } catch (error) {
-            return res.status(401).json({ message: "Unauthorized: Failed to fetch company ID" });
-        }
-
-        // ✅ Fetch stored JWT from local DB
-        let token;
-        try {
-            token = await getStoredToken();
-            console.log(`🔍 Using Token: ${token}`);
-        } catch (error) {
-            return res.status(401).json({ message: "Unauthorized: Token missing or invalid" });
-        }
-
-        console.log(`📤 Sending Removal Request with Token: ${token}`);
-
-        // ✅ Send removal request to Cloud Backend
-        const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensors/remove`;
-        console.log(`📤 Removing Sensor from Active in Cloud: ${cloudApiUrl}`);
-
-        try {
-            const cloudResponse = await axios.post(cloudApiUrl, { sensorId, companyId }, { 
-                headers: { Authorization: `Bearer ${token}` } 
+      const { sensorId } = req.body;
+      if (!sensorId) {
+        return res.status(400).json({ message: "Sensor ID is required" });
+      }
+  
+      // ✅ Get company ID
+      let companyId;
+      try {
+        companyId = await getCompanyIdFromToken();
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized: Failed to fetch company ID" });
+      }
+  
+      // ✅ Get token
+      let token;
+      try {
+        token = await getStoredToken();
+        console.log(`🔍 Using Token: ${token}`);
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized: Token missing or invalid" });
+      }
+  
+      console.log(`📤 Sending Removal Request with Token: ${token}`);
+  
+      // ✅ Send removal request to cloud
+      const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensors/remove`;
+      console.log(`📤 Removing Sensor from Active in Cloud: ${cloudApiUrl}`);
+  
+      try {
+        const cloudResponse = await axios.post(
+          cloudApiUrl,
+          { sensorId, companyId },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+  
+        console.log("✅ Sensor removed from Cloud:", cloudResponse.data);
+  
+        // ✅ Local DB cleanup
+        db.run(`DELETE FROM LocalActiveSensors WHERE bank_id = ?`, [sensorId], async (err) => {
+          if (err) {
+            console.error("❌ Error deleting from Local DB:", err.message);
+          } else {
+            console.log(`✅ Sensor ${sensorId} removed from Local DB.`);
+  
+            // ✅ Drop dynamic table
+            const sensorTableName = `SensorData_${companyId}_${sensorId}`;
+            console.log(`🗑 Dropping sensor data table: ${sensorTableName}`);
+            db.run(`DROP TABLE IF EXISTS ${sensorTableName}`, async (dropErr) => {
+              if (dropErr) {
+                console.error(`❌ Error deleting table ${sensorTableName}:`, dropErr.message);
+              } else {
+                console.log(`✅ Table ${sensorTableName} deleted.`);
+                await syncAllSensorTables(); // ✅ Final table sync after cleanup
+              }
             });
-
-            console.log("✅ Sensor removed successfully from Active Sensors in Cloud:", cloudResponse.data);
-
-            // ✅ Delete from Local DB (LocalActiveSensors)
-            db.run(
-                `DELETE FROM LocalActiveSensors WHERE bank_id = ?`,
-                [sensorId],
-                (err) => {
-                    if (err) {
-                        console.error("❌ Error deleting from Local DB:", err.message);
-                    } else {
-                        console.log(`✅ Sensor ${sensorId} removed from Local DB.`);
-
-                        // ✅ Drop Dynamic Sensor Data Table
-                        const sensorTableName = `SensorData_${companyId}_${sensorId}`;
-                        console.log(`🗑 Dropping sensor data table: ${sensorTableName}`);
-                        db.run(`DROP TABLE IF EXISTS ${sensorTableName}`, (dropErr) => {
-                            if (dropErr) {
-                                console.error(`❌ Error deleting table ${sensorTableName}:`, dropErr.message);
-                            } else {
-                                console.log(`✅ Table ${sensorTableName} deleted.`);
-                            }
-                        });
-                    }
-                }
-            );
-
-            res.status(200).json({ message: "Sensor removed successfully", cloudResponse: cloudResponse.data });
-        } catch (error) {
-            console.error("❌ Failed to remove sensor in Cloud:", error.response?.data || error.message);
-            res.status(500).json({ message: "Failed to remove sensor in Cloud", error: error.response?.data || error.message });
-        }
+          }
+        });
+  
+        res.status(200).json({ message: "Sensor removed successfully", cloudResponse: cloudResponse.data });
+      } catch (error) {
+        console.error("❌ Failed to remove sensor in Cloud:", error.response?.data || error.message);
+        res.status(500).json({ message: "Failed to remove sensor in Cloud", error: error.response?.data || error.message });
+      }
     } catch (error) {
-        console.error("❌ Error removing sensor:", error);
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+      console.error("❌ Error removing sensor:", error);
+      res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
-};
+  };
 
 
 
