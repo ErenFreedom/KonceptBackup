@@ -41,82 +41,96 @@ const getCompanyIdFromToken = async () => {
 };
 
 /** ✅ Send Sensor Data to Cloud */
-const sendDataToCloud = async (sensor_id) => {
+/** ✅ Send Sensor Data to Cloud */
+const sendDataToCloud = async (bank_id) => {
     try {
         const companyId = await getCompanyIdFromToken();
-        const tableName = `SensorData_${companyId}_${sensor_id}`;
+        const tableName = `SensorData_${companyId}_${bank_id}`;
 
-        const sensorQuery = `
-            SELECT interval_seconds, batch_size 
-            FROM LocalActiveSensors 
-            WHERE bank_id = ? AND is_active = 1;
-        `;
+        db.get(
+            `SELECT id, interval_seconds, batch_size FROM LocalActiveSensors WHERE bank_id = ? AND is_active = 1`,
+            [bank_id],
+            (err, sensorRow) => {
+                if (err || !sensorRow) {
+                    console.error(`❌ Sensor ${bank_id} not found or inactive.`, err?.message);
+                    insertLog(bank_id, `❌ Sensor ${bank_id} not found or inactive in LocalActiveSensors.`);
+                    return;
+                }
 
-        db.get(sensorQuery, [sensor_id], async (err, sensorConfig) => {
-            if (err || !sensorConfig) {
-                console.error(`❌ Sensor ${sensor_id} not found or inactive.`);
-                insertLog(sensor_id, `❌ Sensor not found or inactive.`);
-                return;
-            }
+                const { id: localId, interval_seconds, batch_size } = sensorRow;
 
-            const { interval_seconds, batch_size } = sensorConfig;
-
-            db.run(`
-                INSERT INTO IntervalControl (sensor_id, is_sending)
-                VALUES (?, 1)
-                ON CONFLICT(sensor_id) DO UPDATE SET is_sending = 1;
-            `, [sensor_id]);
-
-            const intervalFn = async () => {
-                db.get(
-                    `SELECT is_sending FROM IntervalControl WHERE sensor_id = ?`,
-                    [sensor_id],
-                    async (err, row) => {
-                        if (err || !row || row.is_sending !== 1) return;
-
-                        db.all(
-                            `SELECT * FROM ${tableName} WHERE sent_to_cloud = 0 ORDER BY timestamp ASC LIMIT ?`,
-                            [batch_size],
-                            async (err, rows) => {
-                                if (err) {
-                                    insertLog(sensor_id, `❌ DB Error fetching batch: ${err.message}`);
-                                    return;
-                                }
-
-                                if (rows.length < batch_size) {
-                                    insertLog(sensor_id, `⏳ Waiting for full batch of ${batch_size}. Current: ${rows.length}`);
-                                    return;
-                                }
-
-                                try {
-                                    const response = await axios.post(
-                                        `${process.env.CLOUD_API_URL}/api/sensor-data/receive-data`,
-                                        { companyId, sensorId: sensor_id, batch: rows },
-                                        { headers: { Authorization: `Bearer ${await getStoredToken()}` } }
-                                    );
-
-                                    console.log("✅ Cloud response:", response.data);
-                                    insertLog(sensor_id, `✅ Sent batch to cloud. Count: ${rows.length}`);
-
-                                    const ids = rows.map(row => row.id).join(",");
-                                    db.run(`UPDATE ${tableName} SET sent_to_cloud = 1 WHERE id IN (${ids})`);
-                                } catch (err) {
-                                    console.error("❌ Cloud send error:", err.message);
-                                    insertLog(sensor_id, `❌ Cloud send failed: ${err.message}`);
-                                }
-                            }
-                        );
+                db.run(`
+                    INSERT INTO IntervalControl (sensor_id, is_sending)
+                    VALUES (?, 1)
+                    ON CONFLICT(sensor_id) DO UPDATE SET is_sending = 1;
+                `, [localId], (err) => {
+                    if (err) {
+                        console.error("❌ Failed to update IntervalControl:", err.message);
+                        insertLog(bank_id, `❌ Failed to update IntervalControl: ${err.message}`);
+                        return;
                     }
-                );
-            };
 
-            setInterval(intervalFn, interval_seconds * 1000);
-            console.log(`🚀 Started cloud send interval for sensor ${sensor_id} every ${interval_seconds}s`);
-            insertLog(sensor_id, `🚀 Started sending data to cloud every ${interval_seconds}s`);
-        });
+                    setInterval(() => {
+                        try {
+                            db.get(`SELECT is_sending FROM IntervalControl WHERE sensor_id = ?`, [localId], async (err, row) => {
+                                if (err || !row || row.is_sending !== 1) return;
+
+                                db.all(`SELECT * FROM ${tableName} WHERE sent_to_cloud = 0 ORDER BY timestamp ASC LIMIT ?`, [batch_size], async (err, rows) => {
+                                    if (err) {
+                                        insertLog(bank_id, `❌ DB Error fetching batch: ${err.message}`);
+                                        return;
+                                    }
+
+                                    if (rows.length < batch_size) {
+                                        insertLog(bank_id, `⏳ Waiting for full batch of ${batch_size}. Current: ${rows.length}`);
+                                        return;
+                                    }
+
+                                    const sanitizedBatch = rows.map(row => ({
+                                        ...row,
+                                        sensor_id: bank_id
+                                    }));
+
+                                    try {
+                                        const response = await axios.post(
+                                            `${process.env.CLOUD_API_URL}/api/sensor-data/receive-data`,
+                                            {
+                                                companyId,
+                                                sensorId: bank_id,
+                                                batch: sanitizedBatch,
+                                            },
+                                            {
+                                                headers: {
+                                                    Authorization: `Bearer ${await getStoredToken()}`
+                                                }
+                                            }
+                                        );
+
+                                        console.log("✅ Cloud response:", response.data);
+                                        insertLog(bank_id, `✅ Sent batch to cloud. Count: ${rows.length}`);
+
+                                        const ids = rows.map(row => row.id).join(",");
+                                        db.run(`UPDATE ${tableName} SET sent_to_cloud = 1 WHERE id IN (${ids})`);
+                                    } catch (cloudErr) {
+                                        console.error(`❌ Cloud send error for sensor ${bank_id}:`, cloudErr.message);
+                                        insertLog(bank_id, `❌ Cloud send failed: ${cloudErr.message}`);
+                                    }
+                                });
+                            });
+                        } catch (intervalCrash) {
+                            console.error(`❌ sendDataToCloud internal interval crash:`, intervalCrash.message);
+                            insertLog(bank_id, `❌ Interval crashed: ${intervalCrash.message}`);
+                        }
+                    }, interval_seconds * 1000);
+
+                    console.log(`🚀 Started cloud send interval for sensor ${bank_id} every ${interval_seconds}s`);
+                    insertLog(bank_id, `🚀 Started sending data to cloud every ${interval_seconds}s`);
+                });
+            }
+        );
     } catch (err) {
-        console.error("❌ sendDataToCloud error:", err.message);
-        insertLog(sensor_id, `❌ sendDataToCloud error: ${err.message}`);
+        console.error("❌ sendDataToCloud outer error:", err.message);
+        insertLog(bank_id, `❌ sendDataToCloud outer error: ${err.message}`);
     }
 };
 

@@ -181,7 +181,7 @@ const SensorBank = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
   
-        setLocalSensorsWithAPI(response.data?.sensor_apis || []);
+        setLocalSensorsWithAPI(response.data?.api_endpoints || []);
       } catch (error) {
         console.error("❌ Failed to fetch API endpoints only:", error.response?.data || error.message);
       }
@@ -248,7 +248,7 @@ const SensorBank = () => {
   // ✅ Show Sensor Info
   const showInfo = (sensor) => {
     // 🔍 Try to find the matching API using sensor.id
-    const localMatch = localSensorsWithAPI.find((s) => s.sensor_id === sensor.id);
+    const localMatch = localSensorsWithAPI.find((s) => parseInt(s.sensor_id) === parseInt(sensor.id));
 
     // 🧠 Merge the API into the selected sensor object
     setSelectedSensor({ ...sensor, api_endpoint: localMatch?.api_endpoint || "Not Available" });

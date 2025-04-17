@@ -21,7 +21,7 @@ const getLocalSensors = (req, res) => {
 const getLocalSensorAPIs = (req, res) => {
     console.log("🔍 Fetching sensor APIs from LocalSensorAPIs");
 
-    db.all(`SELECT id, sensor_id, sensor_api FROM LocalSensorAPIs`, [], (err, rows) => {
+    db.all(`SELECT id, sensor_id, api_endpoint FROM LocalSensorAPIs`, [], (err, rows) => {
         if (err) {
             console.error("❌ Error fetching sensor APIs:", err.message);
             return res.status(500).json({ message: "Failed to fetch sensor APIs" });
@@ -47,11 +47,12 @@ const getSensorByAPI = (req, res) => {
 
     // ✅ Corrected Query with the right column name
     const query = `
-        SELECT LocalSensorBank.id, LocalSensorBank.name 
-        FROM LocalSensorBank
-        INNER JOIN LocalSensorAPIs ON LocalSensorBank.id = LocalSensorAPIs.sensor_id
-        WHERE LocalSensorAPIs.api_endpoint = ?;
-    `;
+    SELECT LocalActiveSensors.id AS id, LocalSensorBank.name 
+    FROM LocalActiveSensors
+    INNER JOIN LocalSensorAPIs ON LocalActiveSensors.id = LocalSensorAPIs.sensor_id
+    INNER JOIN LocalSensorBank ON LocalSensorBank.id = LocalActiveSensors.bank_id
+    WHERE LocalSensorAPIs.api_endpoint = ?;
+`;
 
     db.get(query, [api_endpoint], (err, row) => {
         if (err) {

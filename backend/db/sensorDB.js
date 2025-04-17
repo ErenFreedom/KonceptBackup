@@ -74,7 +74,7 @@ const createSensorLogsTable = `
         sensor_id INTEGER NOT NULL,
         log TEXT NOT NULL,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (sensor_id) REFERENCES LocalActiveSensors(id) ON DELETE CASCADE
+        FOREIGN KEY (sensor_id) REFERENCES LocalActiveSensors(bank_id) ON DELETE CASCADE
     );
 `;
 

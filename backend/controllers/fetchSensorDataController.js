@@ -28,41 +28,51 @@ const getCompanyIdFromToken = async () => {
 /** ✅ Function to Fetch and Store Data */
 const fetchAndStoreSensorData = async (sensor, companyId, desigoToken) => {
     try {
-        const { sensor_id, api_endpoint } = sensor;
+        const { sensor_id: bankId, api_endpoint } = sensor;
 
         const response = await axios.get(api_endpoint, {
             headers: { Authorization: `Bearer ${desigoToken}` },
-            httpsAgent: new https.Agent({ rejectUnauthorized: false }) // 👈 Add this
+            httpsAgent: new https.Agent({ rejectUnauthorized: false })
         });
 
         const sensorData = response.data?.[0]?.Value;
         if (!sensorData) {
-            insertLog(sensor_id, "⚠️ No data returned from Desigo endpoint.");
+            insertLog(bankId, "⚠️ No data returned from Desigo endpoint.");
             return;
         }
 
         const { Value, Quality, QualityGood, Timestamp } = sensorData;
-        const tableName = `SensorData_${companyId}_${sensor_id}`;
+        const tableName = `SensorData_${companyId}_${bankId}`;
 
-        const insertQuery = `
-            INSERT INTO ${tableName} (sensor_id, value, quality, quality_good, timestamp)
-            VALUES (?, ?, ?, ?, ?)
-        `;
-
-        db.run(insertQuery, [sensor_id, Value, Quality, QualityGood, Timestamp], (err) => {
-            if (err) {
-                console.error(`❌ DB Insert Error in ${tableName}:`, err.message);
-                insertLog(sensor_id, `❌ Failed to insert data into ${tableName}: ${err.message}`);
-            } else {
-                insertLog(sensor_id, `✅ Data saved successfully to ${tableName}`);
+        // ✅ Get the actual id from LocalActiveSensors
+        db.get(`SELECT id FROM LocalActiveSensors WHERE bank_id = ?`, [bankId], (err, row) => {
+            if (err || !row) {
+                console.error(`❌ No matching LocalActiveSensor row found for bank_id=${bankId}`);
+                insertLog(bankId, `❌ No matching sensor_id in LocalActiveSensors for bank_id=${bankId}`);
+                return;
             }
+
+            const activeSensorId = row.id;
+
+            const insertQuery = `
+                INSERT INTO ${tableName} (sensor_id, value, quality, quality_good, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+
+            db.run(insertQuery, [activeSensorId, Value, Quality, QualityGood, Timestamp], (err) => {
+                if (err) {
+                    console.error(`❌ DB Insert Error in ${tableName}:`, err.message);
+                    insertLog(bankId, `❌ Failed to insert data into ${tableName}: ${err.message}`);
+                } else {
+                    insertLog(bankId, `✅ Data saved successfully to ${tableName}`);
+                }
+            });
         });
     } catch (err) {
         console.error(`❌ Error fetching from Desigo CC for sensor ${sensor.sensor_id}:`, err.message);
         insertLog(sensor.sensor_id, `❌ Fetch failed: ${err.message}`);
     }
 };
-
 
 /** ✅ Main Controller */
 const processSensorByAPI = async (req, res) => {

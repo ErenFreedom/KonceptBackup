@@ -20,71 +20,59 @@ const getCompanyIdFromToken = async () => {
   return { token, companyId: decoded.companyId };
 };
 
-/** ✅ Fetch cloud sensors */
+/** ✅ Fetch sensor list from Cloud */
 const fetchCloudSensors = async (token) => {
   const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensors/list`;
   const res = await axios.get(cloudApiUrl, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  return res.data.sensors || [];
+  return res.data?.sensors || [];
 };
 
-/** ✅ Main function to sync all tables */
+/** ✅ Pure sync: update sensor_id across all local tables */
 const syncAllSensorTables = async () => {
   try {
-    const { token, companyId } = await getCompanyIdFromToken();
+    const { token } = await getCompanyIdFromToken();
     const cloudSensors = await fetchCloudSensors(token);
 
     if (cloudSensors.length === 0) {
-      console.warn("⚠ No sensors found on cloud.");
+      console.warn("⚠ No sensors received from Cloud.");
       return;
     }
 
     db.serialize(() => {
-      cloudSensors.forEach((sensor) => {
-        const { id, name, description, object_id, property_name, data_type } = sensor;
+      cloudSensors.forEach(({ id: cloudId, object_id }) => {
+        if (!object_id) return;
 
-        // ✅ 1. Ensure LocalSensorBank is up to date
-        db.run(`
-          INSERT OR REPLACE INTO LocalSensorBank (id, name, description, object_id, property_name, data_type, is_active)
-          VALUES (?, ?, ?, ?, ?, ?, 0)
-        `, [id, name, description, object_id, property_name, data_type], (err) => {
-          if (err) console.error(`❌ Error syncing SensorBank ID=${id}:`, err.message);
-        });
+        // 1. Get local sensor id based on object_id
+        db.get("SELECT id FROM LocalSensorBank WHERE object_id = ?", [object_id], (err, localRow) => {
+          if (err) return console.error(`❌ Error reading LocalSensorBank for object_id=${object_id}:`, err.message);
+          if (!localRow) return; // Skip if local entry doesn't exist
 
-        // ✅ 2. Ensure LocalActiveSensors exists
-        db.get("SELECT 1 FROM LocalActiveSensors WHERE bank_id = ?", [id], (err, row) => {
-          if (err) return console.error(`❌ ActiveSensors lookup error for ID=${id}:`, err.message);
-          if (!row) {
-            db.run(`
-              INSERT INTO LocalActiveSensors (bank_id, mode, interval_seconds, batch_size, is_active)
-              VALUES (?, 'real_time', 10, 5, 1)
-            `, [id], (err) => {
-              if (err) console.error(`❌ Failed to insert into LocalActiveSensors ID=${id}:`, err.message);
-              else console.log(`✅ Synced LocalActiveSensors for sensor_id=${id}`);
-            });
-          }
-        });
+          const localId = localRow.id;
+          if (localId === cloudId) return; // Already synced
 
-        // ✅ 3. Ensure LocalSensorAPIs exists
-        db.get("SELECT 1 FROM LocalSensorAPIs WHERE sensor_id = ?", [id], (err, row) => {
-          if (err) return console.error(`❌ SensorAPI lookup error for ID=${id}:`, err.message);
-          if (!row) {
-            const apiEndpoint = `N/A`; // or some rule-based URL
-            db.run(`
-              INSERT INTO LocalSensorAPIs (sensor_id, api_endpoint)
-              VALUES (?, ?)
-            `, [id, apiEndpoint], (err) => {
-              if (err) console.error(`❌ Failed to insert into LocalSensorAPIs ID=${id}:`, err.message);
-              else console.log(`✅ Synced LocalSensorAPIs for sensor_id=${id}`);
-            });
-          }
+          // 2. Update ID in LocalSensorBank
+          db.run("UPDATE LocalSensorBank SET id = ? WHERE id = ?", [cloudId, localId], (err) => {
+            if (err) console.error(`❌ Failed to update LocalSensorBank ID=${localId}:`, err.message);
+          });
+
+          // 3. Update bank_id in LocalActiveSensors
+          db.run("UPDATE LocalActiveSensors SET bank_id = ? WHERE bank_id = ?", [cloudId, localId], (err) => {
+            if (err) console.error(`❌ Failed to update LocalActiveSensors ID=${localId}:`, err.message);
+          });
+
+          // 4. Update sensor_id in LocalSensorAPIs
+          db.run("UPDATE LocalSensorAPIs SET sensor_id = ? WHERE sensor_id = ?", [cloudId, localId], (err) => {
+            if (err) console.error(`❌ Failed to update LocalSensorAPIs ID=${localId}:`, err.message);
+          });
+
+          console.log(`✅ Synced IDs for object_id=${object_id}: local=${localId} → cloud=${cloudId}`);
         });
       });
     });
 
-    console.log("✅ All tables synced with Cloud.");
-
+    console.log("✅ Sensor ID sync across local tables completed.");
   } catch (err) {
     console.error("❌ syncAllSensorTables error:", err.message || err);
   }
