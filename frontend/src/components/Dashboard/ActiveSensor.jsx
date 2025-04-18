@@ -459,7 +459,8 @@ const ActiveSensor = () => {
                     <button onClick={() => {
                       setSelectedSensor(sensor);
                       setIsViewingInfo(false); // make sure info/edit modal doesn’t show
-                      setIsShowingLogs(true);  // tell React we're showing logs
+                      setIsShowingLogs(false);  // tell React we're showing logs
+                      setIsLogModalOpen(false);
                       fetchSensorLogs(sensor.bank_id);
                     }}
                     >✏️ Edit Sensor</button>

@@ -5,8 +5,6 @@ const https = require("https");
 const agent = new https.Agent({ rejectUnauthorized: false });
 const { db } = require("../db/sensorDB"); // ✅ use your shared instance
 
-
-
 /** ✅ Fetch Auth Token from Local DB */
 const getStoredToken = () => {
     return new Promise((resolve, reject) => {
@@ -32,7 +30,7 @@ const fetchAndStoreSensorData = async (sensor, companyId, desigoToken) => {
 
         const response = await axios.get(api_endpoint, {
             headers: { Authorization: `Bearer ${desigoToken}` },
-            httpsAgent: new https.Agent({ rejectUnauthorized: false })
+            httpsAgent: agent
         });
 
         const sensorData = response.data?.[0]?.Value;
@@ -44,7 +42,7 @@ const fetchAndStoreSensorData = async (sensor, companyId, desigoToken) => {
         const { Value, Quality, QualityGood, Timestamp } = sensorData;
         const tableName = `SensorData_${companyId}_${bankId}`;
 
-        // ✅ Get the actual id from LocalActiveSensors
+        // ✅ Get local active sensor ID
         db.get(`SELECT id FROM LocalActiveSensors WHERE bank_id = ?`, [bankId], (err, row) => {
             if (err || !row) {
                 console.error(`❌ No matching LocalActiveSensor row found for bank_id=${bankId}`);
@@ -103,20 +101,22 @@ const processSensorByAPI = async (req, res) => {
 
                 const { bank_id, interval_seconds } = sensor;
 
-                // ✅ Step 3: Check IntervalControl Table
-                db.get(`SELECT is_fetching FROM IntervalControl WHERE sensor_id = ?`, [bank_id], (err, row) => {
-                    if (err) return res.status(500).json({ message: "Error checking IntervalControl table." });
-
-                    if (row && row.is_fetching === 1) {
-                        insertLog(bank_id, "⚠️ Fetching already in progress.");
-                        return res.status(409).json({ message: `Sensor ${bank_id} is already fetching.` });
+                // ✅ Step 3: Map bank_id → LocalActiveSensors.id for FK-safe insertion
+                db.get(`SELECT id FROM LocalActiveSensors WHERE bank_id = ?`, [bank_id], (err, row) => {
+                    if (err || !row) {
+                        console.error("❌ Mapping bank_id to id failed:", err?.message);
+                        insertLog(bank_id, `❌ Failed to map bank_id to local id.`);
+                        return res.status(500).json({ message: "Internal mapping error." });
                     }
 
-                    // ✅ Step 4: Insert or Update IntervalControl
+                    const localId = row.id;
+
+                    // ✅ Step 4: Insert or Update IntervalControl using localId
                     db.run(`
-                        INSERT INTO IntervalControl (sensor_id, is_fetching) VALUES (?, 1)
+                        INSERT INTO IntervalControl (sensor_id, is_fetching)
+                        VALUES (?, 1)
                         ON CONFLICT(sensor_id) DO UPDATE SET is_fetching = 1;
-                    `, [bank_id], (err) => {
+                    `, [localId], (err) => {
                         if (err) {
                             console.error("❌ Failed to update IntervalControl:", err.message);
                             insertLog(bank_id, `❌ Failed to update fetch control: ${err.message}`);
@@ -127,7 +127,7 @@ const processSensorByAPI = async (req, res) => {
                         setInterval(() => {
                             db.get(
                                 `SELECT is_fetching FROM IntervalControl WHERE sensor_id = ?`,
-                                [bank_id],
+                                [localId],
                                 (err, row) => {
                                     if (err || !row || row.is_fetching !== 1) return;
 
@@ -159,5 +159,3 @@ const processSensorByAPI = async (req, res) => {
 };
 
 module.exports = { processSensorByAPI };
-
-

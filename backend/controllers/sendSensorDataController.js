@@ -13,7 +13,7 @@ db.run(`
         sensor_id INTEGER PRIMARY KEY,
         is_fetching INTEGER DEFAULT 0,
         is_sending INTEGER DEFAULT 0,
-        FOREIGN KEY (sensor_id) REFERENCES LocalSensorBank(id) ON DELETE CASCADE
+        FOREIGN KEY (sensor_id) REFERENCES LocalActiveSensors(id) ON DELETE CASCADE
     )
 `);
 
@@ -145,29 +145,40 @@ const triggerSendSensorData = async (req, res) => {
 
 /** ✅ API to Stop Sending */
 const stopSendingToCloud = (req, res) => {
-    const { sensor_id } = req.query;
-    if (!sensor_id) return res.status(400).json({ message: "Sensor ID required to stop sending." });
+    const { sensor_id: bank_id } = req.query;
+    if (!bank_id) return res.status(400).json({ message: "Sensor ID required to stop sending." });
 
-    db.run(
-        `UPDATE IntervalControl SET is_sending = 0, is_fetching = 0 WHERE sensor_id = ?`,
-        [sensor_id],
-        function (err) {
-            if (err) {
-                console.error("❌ Failed to stop sending:", err.message);
-                insertLog(sensor_id, `❌ Failed to stop sending: ${err.message}`);
-                return res.status(500).json({ message: "Failed to stop sending." });
-            }
-
-            if (this.changes === 0) {
-                insertLog(sensor_id, `⚠️ No active interval found while stopping.`);
-                return res.status(404).json({ message: `No active sending interval found for sensor ${sensor_id}` });
-            }
-
-            console.log(`🛑 Sending stopped for sensor ${sensor_id}`);
-            insertLog(sensor_id, `🛑 Sending to cloud stopped.`);
-            return res.status(200).json({ message: `Stopped sending to cloud for sensor ${sensor_id}` });
+    // 🔁 Step 1: Get local id from LocalActiveSensors
+    db.get(`SELECT id FROM LocalActiveSensors WHERE bank_id = ?`, [bank_id], (err, row) => {
+        if (err || !row) {
+            console.error(`❌ Failed to map bank_id ${bank_id} to local id`, err?.message);
+            insertLog(bank_id, `❌ Cannot stop sending: sensor ${bank_id} not found in LocalActiveSensors`);
+            return res.status(404).json({ message: `Sensor ${bank_id} not found.` });
         }
-    );
-};
 
+        const localId = row.id;
+
+        // 🔁 Step 2: Stop interval using correct local id
+        db.run(
+            `UPDATE IntervalControl SET is_sending = 0, is_fetching = 0 WHERE sensor_id = ?`,
+            [localId],
+            function (err) {
+                if (err) {
+                    console.error("❌ Failed to stop sending:", err.message);
+                    insertLog(bank_id, `❌ Failed to stop sending: ${err.message}`);
+                    return res.status(500).json({ message: "Failed to stop sending." });
+                }
+
+                if (this.changes === 0) {
+                    insertLog(bank_id, `⚠️ No active interval found while stopping.`);
+                    return res.status(404).json({ message: `No active sending interval found for sensor ${bank_id}` });
+                }
+
+                console.log(`🛑 Sending stopped for sensor ${bank_id}`);
+                insertLog(bank_id, `🛑 Sending to cloud stopped.`);
+                return res.status(200).json({ message: `Stopped sending to cloud for sensor ${bank_id}` });
+            }
+        );
+    });
+};
 module.exports = { triggerSendSensorData, stopSendingToCloud };
