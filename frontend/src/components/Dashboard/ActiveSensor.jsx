@@ -129,12 +129,7 @@ const ActiveSensor = () => {
     }
   };
 
-  useEffect(() => {
-    fetchSensorStatus(); // initial
-    const intervalId = setInterval(fetchSensorStatus, 3000); // poll every 3s
-    return () => clearInterval(intervalId);
-  }, []);
-
+  
 
   useEffect(() => {
     let intervalId;
@@ -693,5 +688,9 @@ const ActiveSensor = () => {
     </div>
   );
 };
+
+
+
+
 
 export default ActiveSensor;

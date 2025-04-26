@@ -6,6 +6,7 @@ import Login2 from "../../assets/Login2.jpg";
 import Login3 from "../../assets/Login3.png";
 import { useNavigate } from "react-router-dom";
 import { FaCheckCircle } from "react-icons/fa";
+import { FaEye } from "react-icons/fa";
 import axios from "axios";
 import Footer from "../../components/Footer/Footer";
 
@@ -17,13 +18,14 @@ const Login = () => {
         "Seamless Multi-Factor Login Experience",
         "Fast & Encrypted Data Processing"
     ];
-    
+
     const [currentIndex, setCurrentIndex] = useState(0);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [buttonText, setButtonText] = useState("Login");
+    const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -90,23 +92,32 @@ const Login = () => {
                 <div className="login-form">
                     <h2>Login</h2>
                     <div className="input-group">
-                        <input 
-                            type="email" 
-                            placeholder="Enter Email" 
-                            className="input-field" 
-                            value={email} 
+                        <input
+                            type="email"
+                            placeholder="Enter Email"
+                            className="input-field"
+                            value={email}
                             onChange={(e) => setEmail(e.target.value)}
                         />
-                        <input 
-                            type="password" 
-                            placeholder="Enter Password" 
-                            className="input-field" 
-                            value={password} 
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
+                        <div className="password-wrapper">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Enter Password"
+                                className="input-field"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                            {password && (
+                                <FaEye
+                                    className="password-toggle-icon"
+                                    onClick={() => setShowPassword(prev => !prev)}
+                                    title={showPassword ? "Hide Password" : "Show Password"}
+                                />
+                            )}
+                        </div>
                     </div>
-                    <button 
-                        className="button-81" 
+                    <button
+                        className="button-81"
                         onClick={handleLogin}
                         disabled={loading}
                     >

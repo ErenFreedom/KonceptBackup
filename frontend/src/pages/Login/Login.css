@@ -280,6 +280,23 @@ body, html {
     color: #4CAF50;
 }
 
+
+.password-wrapper {
+    position: relative;
+    width: 300px;
+}
+
+.password-toggle-icon {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #1e293b;
+    font-size: 1.2rem;
+}
+
+
 /* Spinner Animation */
 @keyframes spin {
     0% { transform: rotate(0deg); }
