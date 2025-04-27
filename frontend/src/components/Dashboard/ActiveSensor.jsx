@@ -97,6 +97,14 @@ const ActiveSensor = () => {
     fetchLocalSensorAPIs();
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchSensorStatus();
+    }, 30000); // poll every 30 seconds
+  
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchSensorLogs = async (sensorId) => {
     try {
       const token = localStorage.getItem("adminToken");
