@@ -47,7 +47,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// ✅ Mimic Desigo CC sensor API response
+// ✅ Sensor API: Fetch latest sensor data by object path
 app.get("/WSI/api/values/:objectPath", authenticateToken, (req, res) => {
   const objectPath = req.params.objectPath;
   const dotIndex = objectPath.lastIndexOf(".");
@@ -91,7 +91,13 @@ app.get("/WSI/api/values/:objectPath", authenticateToken, (req, res) => {
   });
 });
 
-// ✅ Inspect endpoint for dev/testing
+// ✅ Heartbeat API: Dummy responds with 200 OK
+app.post("/WSI/api/Heartbeat", authenticateToken, (req, res) => {
+  console.log("🔁 Heartbeat received from client.");
+  res.status(200).send(); // No body needed, just OK
+});
+
+// ✅ Dev route: Inspect latest sensor rows
 app.get("/api/dev/inspect", authenticateToken, (req, res) => {
   db.all(`SELECT * FROM sensor_data ORDER BY timestamp DESC LIMIT 20`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
