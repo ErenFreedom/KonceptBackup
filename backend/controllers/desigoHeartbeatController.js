@@ -22,7 +22,9 @@ const checkDesigoHeartbeat_Internal = async () => {
     const realServerHeartbeat = `https://${currentUsername}:443/WSI/api/Heartbeat`;
     const dummyServerHeartbeat = `http://localhost:8085/WSI/api/Heartbeat`;
 
-    // Try real server
+    let realServerAlive = false;
+    let dummyServerAlive = false;
+
     try {
       const realRes = await axios.post(realServerHeartbeat, {}, {
         headers: { Authorization: `Bearer ${token}` },
@@ -32,44 +34,49 @@ const checkDesigoHeartbeat_Internal = async () => {
       });
 
       if (realRes.status >= 200 && realRes.status < 400) {
+        realServerAlive = true;
         console.log("✅ Real Desigo Server is ONLINE");
-        return "online";
       } else {
-        console.warn("⚠️ Real Desigo heartbeat failed, trying dummy...");
+        console.warn("⚠️ Real server heartbeat gave bad status:", realRes.status);
       }
     } catch (err) {
       console.warn("⚠️ Real server connection error:", err.message);
     }
 
-    // Try dummy server
-    try {
-      const dummyRes = await axios.post(dummyServerHeartbeat, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 3000,
-        validateStatus: () => true,
-        httpsAgent,
-      });
+    if (!realServerAlive) {
+      try {
+        const dummyRes = await axios.post(dummyServerHeartbeat, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 3000,
+          validateStatus: () => true,
+          httpsAgent,
+        });
 
-      if (dummyRes.status >= 200 && dummyRes.status < 400) {
-        console.log("✅ Dummy Desigo Server is ONLINE");
-        return "online";
-      } else {
-        console.warn("⚠️ Dummy Desigo heartbeat failed too...");
+        if (dummyRes.status >= 200 && dummyRes.status < 400) {
+          dummyServerAlive = true;
+          console.log("✅ Dummy Desigo Server is ONLINE");
+        } else {
+          console.warn("⚠️ Dummy server heartbeat gave bad status:", dummyRes.status);
+        }
+      } catch (err) {
+        console.warn("⚠️ Dummy server connection error:", err.message);
       }
-    } catch (err) {
-      console.warn("⚠️ Dummy server connection error:", err.message);
     }
 
-    console.error("❌ Both servers offline.");
-    return "offline";
+    if (realServerAlive || dummyServerAlive) {
+      return "online"; // ✅ Only if both fail, it's offline
+    } else {
+      console.error("❌ Both servers offline.");
+      return "offline";
+    }
 
   } catch (error) {
-    console.error("❌ Heartbeat check internal error:", error.message || error);
+    console.error("❌ Heartbeat critical error:", error.message || error);
     return "offline";
   }
 };
 
-/** ✅ External Express route handler for frontend */
+/** ✅ Express route handler (frontend call) */
 const checkDesigoHeartbeat = async (req, res) => {
   const status = await checkDesigoHeartbeat_Internal();
   return res.status(200).json({ status });

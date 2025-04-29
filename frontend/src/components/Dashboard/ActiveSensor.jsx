@@ -22,16 +22,18 @@ const ActiveSensor = () => {
 
 
 
-  const openSendDataModal = (sensor) => {
+  const openSendDataModal = async (sensor) => {
     const localMatch = localSensorsWithAPI.find(
       (s) => Number(s.id) === Number(sensor.bank_id)
     );
 
+    const status = activeSensorStatus[sensor.bank_id] || {};
+
     setSelectedSensor({
       ...sensor,
-      api_endpoint: localMatch?.api_endpoint || "Not Available"
-    });
+      api_endpoint: localMatch?.api_endpoint || "Not Available",
 
+    });
 
     setShowSendModal(true);
   };
@@ -100,8 +102,11 @@ const ActiveSensor = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchSensorStatus();
+      fetchAllJobStatuses();
     }, 30000); // poll every 30 seconds
-  
+
+    fetchAllJobStatuses();
+
     return () => clearInterval(interval);
   }, []);
 
@@ -137,7 +142,7 @@ const ActiveSensor = () => {
     }
   };
 
-  
+
 
   useEffect(() => {
     let intervalId;
@@ -148,6 +153,22 @@ const ActiveSensor = () => {
     }
     return () => clearInterval(intervalId);
   }, [isLogModalOpen, selectedSensor]);
+
+
+  useEffect(() => {
+    if (selectedSensor) {
+      const updated = activeSensorStatus[selectedSensor.bank_id];
+      if (updated) {
+        setSelectedSensor(prev => ({
+          ...prev,
+          is_fetching: updated.is_fetching || false,
+          is_sending: updated.is_sending || false,
+        }));
+      }
+    }
+  }, [activeSensorStatus, selectedSensor?.bank_id]);
+
+
 
 
 
@@ -269,6 +290,19 @@ const ActiveSensor = () => {
     }
   };
 
+  const fetchAllJobStatuses = async () => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await axios.get("http://localhost:5004/api/sensors/job-status/all", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setActiveSensorStatus(response.data || {}); // this sets job status for all
+    } catch (err) {
+      console.error("❌ Failed to fetch job statuses:", err.response?.data || err.message);
+    }
+  };
+
 
 
 
@@ -310,28 +344,35 @@ const ActiveSensor = () => {
         return;
       }
 
-      // ✅ Call fetch-sensor with Desigo token included
       await axios.get(`http://localhost:5004/api/local/fetch-sensor`, {
         params: { api_endpoint: api, sensor_id: sensorId },
         headers: {
           Authorization: `Bearer ${adminToken}`,
-          "x-desigo-token": desigoToken // or as a param if backend expects it like ?desigo_token=
+          "x-desigo-token": desigoToken,
         },
       });
 
-      // ✅ Call send-data to cloud
       await axios.get(`http://localhost:5004/api/connector-data/send`, {
         params: { sensor_id: sensorId },
         headers: { Authorization: `Bearer ${adminToken}` },
       });
 
       toast.success("✅ Sensor started sending data to cloud");
-      setSendingSensorId(sensorId);
+
+      // Refresh global status
+      await fetchAllJobStatuses();
+      await fetchSensorStatus();
+
+      // Refresh selectedSensor (important!)
+
     } catch (err) {
       console.error("❌ Error starting data send:", err.response?.data || err.message);
       toast.error("Failed to start sending data.");
     }
   };
+
+
+
 
 
   const stopSendingData = async () => {
@@ -344,33 +385,18 @@ const ActiveSensor = () => {
       });
 
       toast.info("🛑 Sensor data transmission fully stopped.");
-      setSendingSensorId(null);
+
+      // Refresh global status
+      await fetchAllJobStatuses();
+      await fetchSensorStatus();
+
+      // Refresh selectedSensor (important!)
+
     } catch (err) {
       console.error("❌ Failed to stop data:", err.response?.data || err.message);
       toast.error("Failed to stop sending data.");
     }
   };
-
-
-
-
-
-  /** ✅ Show Sensor Info */
-  const showInfo = (sensor) => {
-    const localMatch = localSensorsWithAPI.find(
-      (s) => Number(s.id) === Number(sensor.bank_id)
-    );
-
-    setSelectedSensor({
-      ...sensor,
-      api_endpoint: localMatch?.api_endpoint || "Not Available",
-      interval_seconds: localMatch?.interval_seconds || sensor.interval_seconds || "-",
-      batch_size: localMatch?.batch_size || sensor.batch_size || "-"
-    });
-
-    setIsViewingInfo(true);
-  };
-
 
 
 
@@ -393,6 +419,17 @@ const ActiveSensor = () => {
 
               <p><strong>ID:</strong> {sensor.id}</p>
               <p><strong>Bank ID:</strong> {sensor.bank_id}</p>
+              {activeSensorStatus[sensor.bank_id]?.is_fetching || activeSensorStatus[sensor.bank_id]?.is_sending ? (
+                <div className="job-indicator">
+                  <FaCheckCircle style={{ color: "green", marginRight: "5px" }} />
+                  <span style={{ color: "green", fontWeight: "bold" }}>Running Job</span>
+                </div>
+              ) : (
+                <div className="job-indicator">
+                  <MdCancel style={{ color: "gray", marginRight: "5px" }} />
+                  <span style={{ color: "gray" }}>Idle</span>
+                </div>
+              )}
 
               {/* ✅ Status with Animation */}
               <div className="sensor-status">
@@ -661,7 +698,10 @@ const ActiveSensor = () => {
             {/* Start / Stop Buttons */}
             <button
               className="confirm-button"
-              disabled={sendingSensorId === selectedSensor.bank_id}
+              disabled={
+                activeSensorStatus[selectedSensor.bank_id]?.is_fetching ||
+                activeSensorStatus[selectedSensor.bank_id]?.is_sending
+              }
               onClick={() =>
                 startSendingData(selectedSensor.bank_id, selectedSensor.api_endpoint)
               }
@@ -671,7 +711,12 @@ const ActiveSensor = () => {
 
             <button
               className="stop-button"
-              disabled={sendingSensorId !== selectedSensor.bank_id}
+              disabled={
+                !(
+                  activeSensorStatus[selectedSensor.bank_id]?.is_fetching ||
+                  activeSensorStatus[selectedSensor.bank_id]?.is_sending
+                )
+              }
               onClick={stopSendingData}
             >
               🛑 Stop Sending

@@ -44,6 +44,7 @@ const logRoutes = require("./routes/logRoutes");
 const intervalStatusRoutes = require("./routes/intervalStatusRoutes");
 const desigoHeartbeatRoutes = require("./routes/desigoHeartbeatRoutes");
 const { startHeartbeatMonitor } = require("./controllers/heartbeatMonitorController");
+const sensorJobStatusRoutes = require("./routes/sensorJobStatusRoutes");
 
 /** ✅ Use Routes */
 app.use("/api/admin/auth", cloudAdminAuthRoutes);
@@ -58,6 +59,7 @@ app.use("/api/desigo/auth", desigoAuthRoutes);
 app.use("/api/logs", logRoutes);
 app.use("/api/connector-data", intervalStatusRoutes);
 app.use("/api/desigo", desigoHeartbeatRoutes);
+app.use("/api/sensors/job-status", sensorJobStatusRoutes);
 
 startHeartbeatMonitor();
 
