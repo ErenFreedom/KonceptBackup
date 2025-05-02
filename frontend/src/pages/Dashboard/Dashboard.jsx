@@ -61,15 +61,14 @@ const Dashboard = () => {
     const checkDesigoHealth = async () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/api/desigo/heartbeat`);
-
-        if (res.data?.status === "online") {
-          setDesigoHealth(true);
+        if (res.status === 200) {
+          setDesigoHealth(true); // ✅ Trust 200 regardless of body
         } else {
           setDesigoHealth(false);
         }
       } catch (error) {
         console.error("Failed to check Desigo health:", error.message);
-        setDesigoHealth(false); // treat errors as offline
+        setDesigoHealth(false);
       }
     };
 

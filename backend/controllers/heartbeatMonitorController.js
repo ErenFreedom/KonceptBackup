@@ -10,7 +10,7 @@ const stopAllFetchingAndSending = () => {
       if (err) {
         console.error("❌ Failed to stop IntervalControl jobs:", err.message);
       } else {
-        console.log("🛑 All fetching/sending jobs stopped (Heartbeat failure).");
+        console.log("🛑 All fetching/sending jobs stopped due to heartbeat failure.");
       }
       resolve();
     });
@@ -21,22 +21,25 @@ const stopAllFetchingAndSending = () => {
 const monitorHeartbeat = async () => {
   try {
     const healthStatus = await checkDesigoHeartbeat_Internal();
+
     if (healthStatus === "online") {
+      if (failureCount > 0) {
+        console.log(`✅ Heartbeat restored after ${failureCount} failure(s)`);
+      }
       failureCount = 0;
-      console.log("✅ Heartbeat OK");
     } else {
       failureCount++;
-      console.warn(`⚠️ Heartbeat failure ${failureCount}/3`);
+      console.warn(`⚠️ Heartbeat failure #${failureCount}/3`);
 
       if (failureCount >= 3) {
-        console.error("🛑 Server unreachable. Killing jobs...");
+        console.error("🛑 Server unreachable 3 times in a row. Killing jobs...");
         await stopAllFetchingAndSending();
         failureCount = 0;
       }
     }
   } catch (error) {
     failureCount++;
-    console.error(`❌ Error checking heartbeat:`, error.message);
+    console.error("❌ Error checking heartbeat:", error.message || error);
 
     if (failureCount >= 3) {
       console.error("🛑 Server unreachable after 3 errors. Killing jobs...");
@@ -46,10 +49,10 @@ const monitorHeartbeat = async () => {
   }
 };
 
-/** ✅ Start monitoring */
+/** ✅ Start monitor on backend boot */
 const startHeartbeatMonitor = () => {
-  console.log("🚀 Heartbeat monitor started (interval: 30s)");
-  setInterval(monitorHeartbeat, 30000); // every 30 seconds
+  console.log("🚀 Heartbeat monitor started (interval: 100s)");
+  setInterval(monitorHeartbeat, 100000); // every 100 seconds
 };
 
 module.exports = { startHeartbeatMonitor };

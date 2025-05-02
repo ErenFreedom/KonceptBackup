@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import "./ActiveSensor.css"; // ✅ Ensure styling for proper layout
+import { useJobStatus } from "../../context/JobStatusContext";
 import { FaCheckCircle } from "react-icons/fa"; // ✅ Green active icon
 import { MdCancel } from "react-icons/md"; // ❌ Red inactive icon
 
@@ -17,8 +18,9 @@ const ActiveSensor = () => {
   const [showSendModal, setShowSendModal] = useState(false); // Modal toggle
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logs, setLogs] = useState([]);
-  const [activeSensorStatus, setActiveSensorStatus] = useState({});
+  const { jobStatusMap, setJobStatusMap } = useJobStatus();
   const [isShowingLogs, setIsShowingLogs] = useState(false);
+  const [activeSensorStatus, setActiveSensorStatus] = useState({});
 
 
 
@@ -26,18 +28,32 @@ const ActiveSensor = () => {
     const localMatch = localSensorsWithAPI.find(
       (s) => Number(s.id) === Number(sensor.bank_id)
     );
-
-    const status = activeSensorStatus[sensor.bank_id] || {};
-
+  
     setSelectedSensor({
       ...sensor,
       api_endpoint: localMatch?.api_endpoint || "Not Available",
-
     });
-
+  
     setShowSendModal(true);
+  
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await axios.get("http://localhost:5004/api/sensors/job-status/sensor", {
+        params: { bank_id: sensor.bank_id },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+  
+      setJobStatusMap(prev => ({
+        ...prev,
+        [sensor.bank_id]: {
+          is_fetching: response.data.is_fetching,
+          is_sending: response.data.is_sending,
+        }
+      }));
+    } catch (error) {
+      console.error("❌ Failed to fetch live job status:", error.response?.data || error.message);
+    }
   };
-
 
 
 
@@ -103,7 +119,7 @@ const ActiveSensor = () => {
     const interval = setInterval(() => {
       fetchSensorStatus();
       fetchAllJobStatuses();
-    }, 30000); // poll every 30 seconds
+    },2000); // poll every 30 seconds
 
     fetchAllJobStatuses();
 
@@ -155,19 +171,7 @@ const ActiveSensor = () => {
   }, [isLogModalOpen, selectedSensor]);
 
 
-  useEffect(() => {
-    if (selectedSensor) {
-      const updated = activeSensorStatus[selectedSensor.bank_id];
-      if (updated) {
-        setSelectedSensor(prev => ({
-          ...prev,
-          is_fetching: updated.is_fetching || false,
-          is_sending: updated.is_sending || false,
-        }));
-      }
-    }
-  }, [activeSensorStatus, selectedSensor?.bank_id]);
-
+  
 
 
 
@@ -297,7 +301,7 @@ const ActiveSensor = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      setActiveSensorStatus(response.data || {}); // this sets job status for all
+      setJobStatusMap(response.data || {}); // this sets job status for all
     } catch (err) {
       console.error("❌ Failed to fetch job statuses:", err.response?.data || err.message);
     }
@@ -338,12 +342,13 @@ const ActiveSensor = () => {
     try {
       const adminToken = localStorage.getItem("adminToken");
       const desigoToken = await getDesigoToken();
-
+  
       if (!desigoToken) {
         toast.error("Desigo token missing. Cannot start.");
         return;
       }
-
+  
+      // ✅ Step 1: Trigger backend fetch
       await axios.get(`http://localhost:5004/api/local/fetch-sensor`, {
         params: { api_endpoint: api, sensor_id: sensorId },
         headers: {
@@ -351,20 +356,20 @@ const ActiveSensor = () => {
           "x-desigo-token": desigoToken,
         },
       });
-
+  
+      // ✅ Step 2: Trigger backend send
       await axios.get(`http://localhost:5004/api/connector-data/send`, {
         params: { sensor_id: sensorId },
         headers: { Authorization: `Bearer ${adminToken}` },
       });
-
+  
       toast.success("✅ Sensor started sending data to cloud");
-
-      // Refresh global status
+  
+      // ✅ Step 3: Let backend update IntervalControl, then pull fresh state
+      await new Promise(resolve => setTimeout(resolve, 1000)); // wait 1s
       await fetchAllJobStatuses();
       await fetchSensorStatus();
-
-      // Refresh selectedSensor (important!)
-
+  
     } catch (err) {
       console.error("❌ Error starting data send:", err.response?.data || err.message);
       toast.error("Failed to start sending data.");
@@ -374,24 +379,22 @@ const ActiveSensor = () => {
 
 
 
-
   const stopSendingData = async () => {
     try {
       const token = localStorage.getItem("adminToken");
-
+  
       await axios.get("http://localhost:5004/api/connector-data/stop-send", {
         params: { sensor_id: selectedSensor.bank_id },
         headers: { Authorization: `Bearer ${token}` },
       });
-
+  
       toast.info("🛑 Sensor data transmission fully stopped.");
-
-      // Refresh global status
+  
+      // ✅ Step 2: Let backend update IntervalControl, then pull fresh state
+      await new Promise(resolve => setTimeout(resolve, 1000)); // wait 1s
       await fetchAllJobStatuses();
       await fetchSensorStatus();
-
-      // Refresh selectedSensor (important!)
-
+  
     } catch (err) {
       console.error("❌ Failed to stop data:", err.response?.data || err.message);
       toast.error("Failed to stop sending data.");
@@ -411,7 +414,7 @@ const ActiveSensor = () => {
           sensors.map((sensor) => (
             <div key={sensor.id} className="sensor-card">
               <p><strong>Name:</strong> {sensor.name}</p>
-              {activeSensorStatus[sensor.bank_id]?.is_fetching === 1 || activeSensorStatus[sensor.bank_id]?.is_sending === 1 ? (
+              {jobStatusMap[sensor.bank_id]?.is_fetching === 1 || jobStatusMap[sensor.bank_id]?.is_sending === 1 ? (
                 <div className="pulsating-dot" title="Fetching or Sending..."></div>
               ) : null}
 
@@ -419,7 +422,7 @@ const ActiveSensor = () => {
 
               <p><strong>ID:</strong> {sensor.id}</p>
               <p><strong>Bank ID:</strong> {sensor.bank_id}</p>
-              {activeSensorStatus[sensor.bank_id]?.is_fetching || activeSensorStatus[sensor.bank_id]?.is_sending ? (
+              {jobStatusMap[sensor.bank_id]?.is_fetching || jobStatusMap[sensor.bank_id]?.is_sending ? (
                 <div className="job-indicator">
                   <FaCheckCircle style={{ color: "green", marginRight: "5px" }} />
                   <span style={{ color: "green", fontWeight: "bold" }}>Running Job</span>
@@ -461,18 +464,18 @@ const ActiveSensor = () => {
                     <button
                       onClick={() => deactivateSensor(sensor.bank_id)}
                       disabled={
-                        activeSensorStatus[sensor.bank_id]?.is_fetching ||
-                        activeSensorStatus[sensor.bank_id]?.is_sending
+                        jobStatusMap[sensor.bank_id]?.is_fetching ||
+                        jobStatusMap[sensor.bank_id]?.is_sending
                       }
                       style={{
                         color:
-                          activeSensorStatus[sensor.bank_id]?.is_fetching ||
-                            activeSensorStatus[sensor.bank_id]?.is_sending
+                          jobStatusMap[sensor.bank_id]?.is_fetching ||
+                            jobStatusMap[sensor.bank_id]?.is_sending
                             ? "gray"
                             : "inherit",
                         cursor:
-                          activeSensorStatus[sensor.bank_id]?.is_fetching ||
-                            activeSensorStatus[sensor.bank_id]?.is_sending
+                          jobStatusMap[sensor.bank_id]?.is_fetching ||
+                            jobStatusMap[sensor.bank_id]?.is_sending
                             ? "not-allowed"
                             : "pointer",
                       }}
@@ -509,8 +512,8 @@ const ActiveSensor = () => {
                   <button
                     disabled={
                       !(
-                        activeSensorStatus[sensor.bank_id]?.is_fetching ||
-                        activeSensorStatus[sensor.bank_id]?.is_sending
+                        jobStatusMap[sensor.bank_id]?.is_fetching ||
+                        jobStatusMap[sensor.bank_id]?.is_sending
                       )
                     }
                     onClick={() => {
@@ -519,13 +522,13 @@ const ActiveSensor = () => {
                     }}
                     style={{
                       color:
-                        activeSensorStatus[sensor.bank_id]?.is_fetching ||
-                          activeSensorStatus[sensor.bank_id]?.is_sending
+                        jobStatusMap[sensor.bank_id]?.is_fetching ||
+                          jobStatusMap[sensor.bank_id]?.is_sending
                           ? "inherit"
                           : "gray",
                       cursor:
-                        activeSensorStatus[sensor.bank_id]?.is_fetching ||
-                          activeSensorStatus[sensor.bank_id]?.is_sending
+                        jobStatusMap[sensor.bank_id]?.is_fetching ||
+                          jobStatusMap[sensor.bank_id]?.is_sending
                           ? "pointer"
                           : "not-allowed",
                     }}
@@ -699,8 +702,8 @@ const ActiveSensor = () => {
             <button
               className="confirm-button"
               disabled={
-                activeSensorStatus[selectedSensor.bank_id]?.is_fetching ||
-                activeSensorStatus[selectedSensor.bank_id]?.is_sending
+                jobStatusMap[selectedSensor.bank_id]?.is_fetching ||
+                jobStatusMap[selectedSensor.bank_id]?.is_sending
               }
               onClick={() =>
                 startSendingData(selectedSensor.bank_id, selectedSensor.api_endpoint)
@@ -713,8 +716,8 @@ const ActiveSensor = () => {
               className="stop-button"
               disabled={
                 !(
-                  activeSensorStatus[selectedSensor.bank_id]?.is_fetching ||
-                  activeSensorStatus[selectedSensor.bank_id]?.is_sending
+                  jobStatusMap[selectedSensor.bank_id]?.is_fetching ||
+                  jobStatusMap[selectedSensor.bank_id]?.is_sending
                 )
               }
               onClick={stopSendingData}

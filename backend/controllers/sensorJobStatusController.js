@@ -8,7 +8,14 @@ const getSensorJobStatus = (req, res) => {
     return res.status(400).json({ message: "Missing sensor bank_id" });
   }
 
-  db.get("SELECT is_fetching, is_sending FROM IntervalControl WHERE sensor_id = ?", [bankId], (err, row) => {
+  const query = `
+    SELECT IntervalControl.is_fetching, IntervalControl.is_sending
+    FROM IntervalControl
+    JOIN LocalActiveSensors ON IntervalControl.sensor_id = LocalActiveSensors.id
+    WHERE LocalActiveSensors.bank_id = ?
+  `;
+
+  db.get(query, [bankId], (err, row) => {
     if (err) {
       console.error("❌ DB error while fetching sensor job status:", err.message);
       return res.status(500).json({ message: "DB error" });
@@ -24,10 +31,19 @@ const getSensorJobStatus = (req, res) => {
     });
   });
 };
-
 // Get job status of ALL active sensors
 const getAllSensorJobStatuses = (req, res) => {
-  db.all("SELECT sensor_id, is_fetching, is_sending FROM IntervalControl", [], (err, rows) => {
+  const query = `
+    SELECT
+      IntervalControl.sensor_id AS local_id,
+      LocalActiveSensors.bank_id AS bank_id,
+      IntervalControl.is_fetching,
+      IntervalControl.is_sending
+    FROM IntervalControl
+    JOIN LocalActiveSensors ON IntervalControl.sensor_id = LocalActiveSensors.id
+  `;
+
+  db.all(query, [], (err, rows) => {
     if (err) {
       console.error("❌ Failed to fetch all sensor job statuses:", err.message);
       return res.status(500).json({ message: "Database error" });
@@ -35,13 +51,13 @@ const getAllSensorJobStatuses = (req, res) => {
 
     const result = {};
     rows.forEach(row => {
-      result[row.sensor_id] = {
+      result[row.bank_id] = {
         is_fetching: !!row.is_fetching,
-        is_sending: !!row.is_sending
+        is_sending: !!row.is_sending,
       };
     });
 
-    res.status(200).json(result);
+    return res.status(200).json(result);
   });
 };
 
