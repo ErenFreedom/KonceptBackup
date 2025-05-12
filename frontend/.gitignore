@@ -2,3 +2,4 @@
 /.env
 build
 dist
+/dist.7z

@@ -46,12 +46,13 @@ const createActiveSensorsTable = `
     );
 `;
 
-// ✅ Create `LocalSensorAPIs` Table (NEW)
+// ✅ Create `LocalSensorAPIs` Table (MODIFIED to include created_at)
 const createSensorAPITable = `
     CREATE TABLE IF NOT EXISTS LocalSensorAPIs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sensor_id INTEGER NOT NULL,
         api_endpoint TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (sensor_id) REFERENCES LocalSensorBank(id) ON DELETE CASCADE
     );
 `;

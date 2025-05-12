@@ -2,8 +2,9 @@ const { db } = require("../db/sensorDB");
 const { checkDesigoHeartbeat_Internal } = require("./desigoHeartbeatController");
 
 let failureCount = 0;
+const MAX_FAILURES = 30;
+const INTERVAL_MS = 180000; // 3 minutes
 
-/** ✅ Stops all fetching and sending if server unreachable */
 const stopAllFetchingAndSending = () => {
   return new Promise((resolve) => {
     db.run(`UPDATE IntervalControl SET is_fetching = 0, is_sending = 0`, [], (err) => {
@@ -17,42 +18,39 @@ const stopAllFetchingAndSending = () => {
   });
 };
 
-/** ✅ Monitor heartbeat periodically */
 const monitorHeartbeat = async () => {
   try {
-    const healthStatus = await checkDesigoHeartbeat_Internal();
+    const status = await checkDesigoHeartbeat_Internal();
 
-    if (healthStatus === "online") {
+    if (status === "online") {
       if (failureCount > 0) {
-        console.log(`✅ Heartbeat restored after ${failureCount} failure(s)`);
+        console.log(`✅ Heartbeat restored after ${failureCount} failure(s). Resetting count.`);
       }
-      failureCount = 0;
+      failureCount = 0; // RESET ON SUCCESS
     } else {
       failureCount++;
-      console.warn(`⚠️ Heartbeat failure #${failureCount}/3`);
+      console.warn(`⚠️ Heartbeat failure #${failureCount}/${MAX_FAILURES}`);
 
-      if (failureCount >= 3) {
-        console.error("🛑 Server unreachable 3 times in a row. Killing jobs...");
+      if (failureCount >= MAX_FAILURES) {
+        console.error("🛑 Server unreachable 30 times in a row. Killing jobs...");
         await stopAllFetchingAndSending();
         failureCount = 0;
       }
     }
-  } catch (error) {
+  } catch (err) {
     failureCount++;
-    console.error("❌ Error checking heartbeat:", error.message || error);
-
-    if (failureCount >= 3) {
-      console.error("🛑 Server unreachable after 3 errors. Killing jobs...");
+    console.error("❌ Heartbeat check failed:", err.message || err);
+    if (failureCount >= MAX_FAILURES) {
+      console.error("🛑 Server unreachable 30 times (error path). Killing jobs...");
       await stopAllFetchingAndSending();
       failureCount = 0;
     }
   }
 };
 
-/** ✅ Start monitor on backend boot */
 const startHeartbeatMonitor = () => {
-  console.log("🚀 Heartbeat monitor started (interval: 100s)");
-  setInterval(monitorHeartbeat, 100000); // every 100 seconds
+  console.log(`🚀 Heartbeat monitor started (interval: ${INTERVAL_MS / 1000}s, max failures: ${MAX_FAILURES})`);
+  setInterval(monitorHeartbeat, INTERVAL_MS);
 };
 
 module.exports = { startHeartbeatMonitor };

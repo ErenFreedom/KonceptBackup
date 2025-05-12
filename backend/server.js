@@ -44,7 +44,9 @@ const logRoutes = require("./routes/logRoutes");
 const intervalStatusRoutes = require("./routes/intervalStatusRoutes");
 const desigoHeartbeatRoutes = require("./routes/desigoHeartbeatRoutes");
 const { startHeartbeatMonitor } = require("./controllers/heartbeatMonitorController");
+const {rehydrateIntervals} = require("./utils/rehydrateIntervals");
 const sensorJobStatusRoutes = require("./routes/sensorJobStatusRoutes");
+const syncRoutes = require("./routes/syncRoutes");
 
 /** ✅ Use Routes */
 app.use("/api/admin/auth", cloudAdminAuthRoutes);
@@ -60,9 +62,10 @@ app.use("/api/logs", logRoutes);
 app.use("/api/connector-data", intervalStatusRoutes);
 app.use("/api/desigo", desigoHeartbeatRoutes);
 app.use("/api/sensors/job-status", sensorJobStatusRoutes);
+app.use("/api/local-db", syncRoutes);
 
 startHeartbeatMonitor();
-
+rehydrateIntervals();
 /** ✅ Health Check */
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Connector App Backend is running!' });

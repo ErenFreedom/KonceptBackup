@@ -24,21 +24,16 @@ const getStoredToken = () => {
   });
 };
 
-/** ✅ Add a Sensor (Connector Backend → Cloud Backend + Local DB) */
 const addSensor = async (req, res) => {
   try {
     const { sensorApi, sensorName, rateLimit } = req.body;
 
-    console.log("📥 Incoming Add Sensor Request:");
-    console.log("🌐 sensorApi:", sensorApi);
-    console.log("📛 sensorName:", sensorName);
-    console.log("⏱ rateLimit:", rateLimit);
+    console.log("📥 Incoming Add Sensor Request:", { sensorApi, sensorName, rateLimit });
 
     if (!sensorApi || !sensorName || !rateLimit) {
       return res.status(400).json({ message: "Sensor API, name, and rate limit are required" });
     }
 
-    // ✅ Check if API already exists
     const existingApi = await new Promise((resolve, reject) => {
       db.get("SELECT * FROM LocalSensorAPIs WHERE api_endpoint = ?", [sensorApi], (err, row) => {
         if (err) reject("DB error while checking existing API");
@@ -47,12 +42,11 @@ const addSensor = async (req, res) => {
     });
 
     if (existingApi) {
-      console.warn("⚠ Sensor API already exists in LocalSensorAPIs. Skipping insert.");
       return res.status(409).json({ message: "Sensor API already exists in LocalSensorAPIs" });
     }
 
-    // ✅ Get tokens
     const cloudToken = await getStoredToken();
+
     const desigoToken = await new Promise((resolve, reject) => {
       db.get("SELECT token FROM DesigoAuthTokens ORDER BY id DESC LIMIT 1", [], (err, row) => {
         if (err || !row?.token) reject("Desigo token not found");
@@ -60,9 +54,6 @@ const addSensor = async (req, res) => {
       });
     });
 
-    console.log("🔐 Tokens fetched successfully");
-
-    // ✅ Fetch sensor metadata from Desigo API
     const response = await axios.get(sensorApi, {
       headers: { Authorization: `Bearer ${desigoToken}` },
       httpsAgent: agent,
@@ -74,9 +65,8 @@ const addSensor = async (req, res) => {
     }
 
     const { DataType, ObjectId, PropertyName } = sensorData[0];
-    console.log("✅ Sensor Data Parsed:", { DataType, ObjectId, PropertyName });
 
-    // ✅ Push to Cloud SensorBank
+    // ✅ Send sensor + API to Cloud
     const cloudResponse = await axios.post(
       `${process.env.CLOUD_API_URL}/api/sensor-bank/add`,
       {
@@ -86,13 +76,15 @@ const addSensor = async (req, res) => {
         propertyName: PropertyName,
         dataType: DataType,
         isActive: false,
+        apiEndpoint: sensorApi // ✅ INCLUDED HERE
       },
-      { headers: { Authorization: `Bearer ${cloudToken}` } }
+      {
+        headers: { Authorization: `Bearer ${cloudToken}` }
+      }
     );
 
     console.log("☁️ Cloud Sensor Added:", cloudResponse.data);
 
-    // ✅ Insert sensor into LocalSensorBank
     db.serialize(() => {
       const insertSensorQuery = `
         INSERT INTO LocalSensorBank (name, description, object_id, property_name, data_type, is_active)
@@ -108,24 +100,17 @@ const addSensor = async (req, res) => {
             return res.status(500).json({ message: "Failed to insert sensor locally" });
           }
 
-          console.log("✅ Sensor inserted into LocalSensorBank");
-
-          // ✅ Sync IDs with Cloud using safer helper
           await updateLocalSensorIds();
 
-          // ✅ Get the synced sensor ID from LocalSensorBank
           db.get("SELECT id FROM LocalSensorBank WHERE object_id = ?", [ObjectId], (err, row) => {
             if (err || !row) {
-              console.error("❌ Sensor not found after ID sync:", err?.message || "Missing row");
               return res.status(500).json({ message: "Sensor ID not found after sync" });
             }
 
             const syncedSensorId = row.id;
 
-            // ✅ Final insert into LocalSensorAPIs
             db.get("SELECT * FROM LocalSensorAPIs WHERE api_endpoint = ?", [sensorApi], (err, existingRow) => {
               if (err) {
-                console.error("❌ Error checking API before insert:", err.message);
                 return res.status(500).json({ message: "DB error while verifying API" });
               }
 
@@ -145,8 +130,6 @@ const addSensor = async (req, res) => {
               db.run(insertApiQuery, [syncedSensorId, sensorApi], (err) => {
                 if (err) {
                   console.error("❌ Error inserting into LocalSensorAPIs:", err.message);
-                } else {
-                  console.log(`✅ Inserted API for sensor ${syncedSensorId}`);
                 }
 
                 return res.status(200).json({
@@ -171,64 +154,58 @@ const addSensor = async (req, res) => {
 const deleteSensor = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`🧩 Sensor ID received in request: ${id}`);
+    console.log(`🧩 Sensor ID to delete: ${id}`);
 
-    // ✅ Fetch token
+    // ✅ Get stored cloud token
     let token;
     try {
       token = await getStoredToken();
-    } catch (error) {
+    } catch (err) {
       return res.status(401).json({ message: "Unauthorized: Token missing or invalid" });
     }
 
-    // ✅ Cloud delete
-    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/sensor-bank/delete/${id}`;
-    console.log(`🗑 Deleting Sensor from Cloud: ${cloudApiUrl}`);
+    // ✅ Call Cloud Backend to Delete Sensor from SensorBank + SensorAPI
+    const deleteSensorUrl = `${process.env.CLOUD_API_URL}/api/sensor-bank/delete/${id}`;
+    console.log(`🗑 Deleting from Cloud SensorBank (and SensorAPI): ${deleteSensorUrl}`);
 
-    let cloudResponse;
     try {
-      cloudResponse = await axios.delete(cloudApiUrl, {
-        headers: { Authorization: `Bearer ${token}` },
+      await axios.delete(deleteSensorUrl, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      console.log("✅ Sensor deleted from Cloud:", cloudResponse.data);
+      console.log(`✅ Cloud SensorBank + API entry for ID ${id} deleted`);
     } catch (error) {
-      console.error("❌ Error deleting from Cloud:", error.response?.data || error.message);
+      console.error("❌ Failed to delete sensor from Cloud:", error.response?.data || error.message);
       return res.status(500).json({
-        message: "Failed to delete sensor from cloud",
-        error: error.response?.data || error.message,
+        message: "Cloud deletion failed",
+        error: error.response?.data || error.message
       });
     }
 
-    // ✅ Local DB deletion
+    // ✅ Local DB Cleanup
     db.serialize(() => {
       db.run(`DELETE FROM LocalActiveSensors WHERE bank_id = ?`, [id], (err) => {
-        if (err) console.error("❌ Error deleting from LocalActiveSensors:", err.message);
-        else console.log(`✅ Sensor ${id} deleted from LocalActiveSensors.`);
+        if (err) console.error("❌ LocalActiveSensors delete error:", err.message);
+        else console.log(`✅ LocalActiveSensors entry for sensor ${id} deleted`);
       });
 
       db.run(`DELETE FROM LocalSensorAPIs WHERE sensor_id = ?`, [id], (err) => {
-        if (err) console.error("❌ Error deleting from LocalSensorAPIs:", err.message);
-        else console.log(`✅ Sensor ${id} deleted from LocalSensorAPIs.`);
+        if (err) console.error("❌ LocalSensorAPIs delete error:", err.message);
+        else console.log(`✅ LocalSensorAPIs entry for sensor ${id} deleted`);
       });
 
       db.run(`DELETE FROM LocalSensorBank WHERE id = ?`, [id], (err) => {
-        if (err) console.error("❌ Error deleting from LocalSensorBank:", err.message);
-        else console.log(`✅ Sensor ${id} deleted from LocalSensorBank.`);
+        if (err) console.error("❌ LocalSensorBank delete error:", err.message);
+        else console.log(`✅ LocalSensorBank entry for sensor ${id} deleted`);
       });
     });
 
-    res.status(200).json({
-      message: "Sensor deleted successfully",
-      cloudResponse: cloudResponse.data,
-    });
+    res.status(200).json({ message: "Sensor deleted from cloud and local DB" });
 
   } catch (error) {
-    console.error("❌ Error deleting sensor:", error);
+    console.error("❌ Unexpected error in deleteSensor:", error.message);
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
-
-
 
 
 /** ✅ Get All Sensors (Connector Fetches from Cloud Only) */
