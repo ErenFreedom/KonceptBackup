@@ -27,8 +27,8 @@ const syncFromCloud = async (req, res) => {
           if (!row) {
             // ✅ Insert into LocalSensorBank (new sensors only)
             db.run(
-              `INSERT INTO LocalSensorBank (id, name, description, object_id, property_name, data_type, is_active, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO LocalSensorBank (id, name, description, object_id, property_name, data_type, is_active, room_id, created_at, updated_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 sensor.id,
                 sensor.name,
@@ -37,6 +37,7 @@ const syncFromCloud = async (req, res) => {
                 sensor.property_name,
                 sensor.data_type,
                 sensor.is_active,
+                sensor.room_id || null,  // ✅ Include room_id from cloud (or NULL fallback)
                 sensor.created_at,
                 sensor.updated_at,
               ],

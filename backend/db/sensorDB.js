@@ -16,16 +16,16 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-// ✅ Create `LocalSensorBank` Table
 const createSensorBankTable = `
     CREATE TABLE IF NOT EXISTS LocalSensorBank (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT DEFAULT NULL,
         object_id TEXT UNIQUE NOT NULL,
         property_name TEXT NOT NULL,
         data_type TEXT NOT NULL,
         is_active BOOLEAN DEFAULT 0,
+        room_id INTEGER DEFAULT NULL,  -- ✅ Purely informational
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
