@@ -53,11 +53,14 @@ const syncAllSubSites = async () => {
                     );`);
 
                     db.run(`CREATE TABLE IF NOT EXISTS ${sensorTable} (
-                        id INTEGER PRIMARY KEY,
-                        bank_id INTEGER,
-                        is_active BOOLEAN,
-                        created_at TEXT,
-                        updated_at TEXT,
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        bank_id INTEGER NOT NULL UNIQUE,
+                        mode TEXT CHECK( mode IN ('real_time', 'manual') ) DEFAULT 'manual',
+                        interval_seconds INTEGER CHECK( interval_seconds >= 5 AND interval_seconds <= 100 ) DEFAULT 5,
+                        batch_size INTEGER DEFAULT 5,
+                        is_active BOOLEAN DEFAULT 1,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (bank_id) REFERENCES ${bankTable}(id) ON DELETE CASCADE
                     );`);
 
@@ -80,11 +83,15 @@ const syncAllSubSites = async () => {
 
                     // Insert into Sensor table
                     for (const row of activeSensors) {
-                        db.run(`INSERT OR IGNORE INTO ${sensorTable} VALUES (?, ?, ?, ?, ?)`,
+                        db.run(
+                            `INSERT OR IGNORE INTO ${sensorTable} 
+                            (id, bank_id, is_active, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?)`,
                             [row.id, row.bank_id, row.is_active, row.created_at, row.updated_at],
                             (err) => {
                                 if (err) console.error(`❌ Insert failed [Sensor ${subsiteId}]:`, err.message);
-                            });
+                            }
+                        );
                     }
 
                     // Insert into SensorAPI table
