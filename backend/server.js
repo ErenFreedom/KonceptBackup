@@ -47,6 +47,8 @@ const { startHeartbeatMonitor } = require("./controllers/heartbeatMonitorControl
 const {rehydrateIntervals} = require("./utils/rehydrateIntervals");
 const sensorJobStatusRoutes = require("./routes/sensorJobStatusRoutes");
 const syncRoutes = require("./routes/syncRoutes");
+const subsiteSyncRoutes = require("./routes/subsiteSyncRoutes");
+const subSiteSensorRoutes = require("./routes/subsiteSensorRoutes");
 
 /** ✅ Use Routes */
 app.use("/api/admin/auth", cloudAdminAuthRoutes);
@@ -63,6 +65,8 @@ app.use("/api/connector-data", intervalStatusRoutes);
 app.use("/api/desigo", desigoHeartbeatRoutes);
 app.use("/api/sensors/job-status", sensorJobStatusRoutes);
 app.use("/api/local-db", syncRoutes);
+app.use("/api/subsite", subsiteSyncRoutes);
+app.use("/api/subsite/sensor", subSiteSensorRoutes); // ✅ Add this line
 
 startHeartbeatMonitor();
 rehydrateIntervals();

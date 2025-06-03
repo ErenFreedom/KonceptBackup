@@ -4,41 +4,37 @@ import logo from "../../assets/logo.png";
 import { useNavigate } from "react-router-dom";
 import { FaCheckCircle } from "react-icons/fa";
 import axios from "axios";
-import { jwtDecode } from "jwt-decode"; // ✅ Import JWT Decoder
+import { jwtDecode } from "jwt-decode";
 import { toast } from "react-toastify";
 import Footer from "../../components/Footer/Footer";
 
+
 const Desigo = () => {
     const navigate = useNavigate();
-    const [apiUrl, setApiUrl] = useState(""); // ✅ API URL Field
+    const [apiUrl, setApiUrl] = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [authenticated, setAuthenticated] = useState(false);
-    const [errorMessage, setErrorMessage] = useState(""); // ✅ Error Handling
+    const [errorMessage, setErrorMessage] = useState("");
     const [dbSynced, setDbSynced] = useState(false);
     const [syncing, setSyncing] = useState(false);
-
+    const [subsiteSyncing, setSubsiteSyncing] = useState(false);
+    const [subsiteSynced, setSubsiteSynced] = useState(false); // ✅ NEW STATE
 
     /** ✅ Function to store token in local DB */
     const storeTokenInDB = async (token, usernameToStore) => {
         try {
             console.log("📤 Attempting to store token in local DB...");
-            console.log("🔐 Token length:", token.length);
-            console.log("👤 Username being sent:", usernameToStore);
-
             const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/api/desigo/auth/save-token`, {
                 username: usernameToStore,
                 token
             });
-
             console.log("✅ Token stored in local DB successfully!", response.data);
         } catch (error) {
             console.error("❌ Failed to store token in DB:", error.response?.data || error.message);
         }
     };
-
-
 
     /** ✅ Sync Local DB from Cloud */
     const syncLocalDB = async () => {
@@ -65,6 +61,22 @@ const Desigo = () => {
         }
     };
 
+    /** ✅ Sync All Sub-site DBs */
+    const syncSubsiteDBs = async () => {
+        setSubsiteSyncing(true);
+        try {
+            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/api/subsite/sync-all`);
+            console.log("✅ Sub-site sync response:", response.data);
+            toast.success("Sub-site DBs synced successfully ✅");
+            setSubsiteSynced(true); // ✅ mark synced
+        } catch (error) {
+            console.error("❌ Sub-site sync failed:", error.response?.data || error.message);
+            toast.error("Sub-site DB sync failed ❌");
+        } finally {
+            setSubsiteSyncing(false);
+        }
+    };
+
     const handleAuthenticate = async () => {
         if (!apiUrl || !username || !password) {
             setErrorMessage("Please enter all fields.");
@@ -76,23 +88,16 @@ const Desigo = () => {
         console.log("🚀 Starting authentication process...");
 
         try {
-            console.log("🌐 Sending token request to API URL:", apiUrl);
-
             const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/api/desigo/auth/get-token`, {
                 apiUrl,
                 username,
                 password
             });
 
-            console.log("✅ Authentication Successful:", response.data);
-
             const token = response.data.accessToken || response.data.access_token;
-            console.log("🔐 Received Token:", token);
-
             localStorage.setItem("desigoToken", token);
             localStorage.setItem("desigoUsername", username);
 
-            // ✅ Explicitly pass username
             await storeTokenInDB(token, username);
 
             setAuthenticated(true);
@@ -101,8 +106,6 @@ const Desigo = () => {
             const storedToken = localStorage.getItem("adminToken");
             if (storedToken) {
                 const decoded = jwtDecode(storedToken);
-                console.log("🔓 Decoded Admin Token:", decoded);
-                console.log("📍 Navigating to dashboard with Admin ID:", decoded.adminId);
                 navigate(`/dashboard/${decoded.adminId}`);
             }
         } catch (error) {
@@ -111,9 +114,6 @@ const Desigo = () => {
             setLoading(false);
         }
     };
-
-
-
 
     return (
         <div className="desigo-page">
@@ -131,7 +131,7 @@ const Desigo = () => {
                 <p className="desigo-subtext">Enter your API URL and credentials to request a token.</p>
 
                 <div className="desigo-auth-form">
-                    {/* ✅ Sync Button and Spinner */}
+                    {/* ✅ Sync Local DB Button */}
                     <button
                         className="desigo-sync-button"
                         onClick={syncLocalDB}
@@ -139,13 +139,30 @@ const Desigo = () => {
                     >
                         {syncing ? "Syncing..." : dbSynced ? "✔️ DB Synced" : "🔄 Sync Local DB"}
                     </button>
-                    {syncing && <div className="loading-spinner"></div>}
+
+                    {/* ✅ Sync Sub-site DBs Button */}
+                    <button
+                        className="desigo-sync-button"
+                        onClick={syncSubsiteDBs}
+                        disabled={subsiteSyncing || subsiteSynced || !dbSynced}
+                    >
+                        {subsiteSyncing
+                            ? "Syncing Sub-sites..."
+                            : subsiteSynced
+                                ? "✔️ Sub-sites Synced"
+                                : "🔁 Sync Sub-site DBs"}
+                    </button>
+
+                    {(syncing || subsiteSyncing) && <div className="loading-spinner"></div>}
+
+                    {/* ✅ Inputs are disabled until both syncs done */}
                     <input
                         type="text"
                         placeholder="Desigo CC API URL"
                         className="desigo-input"
                         value={apiUrl}
                         onChange={(e) => setApiUrl(e.target.value)}
+                        disabled={!dbSynced || !subsiteSynced}
                     />
                     <input
                         type="text"
@@ -153,6 +170,7 @@ const Desigo = () => {
                         className="desigo-input"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
+                        disabled={!dbSynced || !subsiteSynced}
                     />
                     <input
                         type="password"
@@ -160,6 +178,7 @@ const Desigo = () => {
                         className="desigo-input"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        disabled={!dbSynced || !subsiteSynced}
                     />
 
                     {errorMessage && <p className="error-text">{errorMessage}</p>}
@@ -170,7 +189,7 @@ const Desigo = () => {
                         <button
                             className="desigo-auth-button"
                             onClick={handleAuthenticate}
-                            disabled={loading || !dbSynced}
+                            disabled={loading || !dbSynced || !subsiteSynced}
                         >
                             {loading ? "Authenticating..." : "Authenticate"}
                         </button>
