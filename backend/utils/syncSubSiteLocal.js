@@ -72,6 +72,21 @@ const syncAllSubSites = async () => {
                         FOREIGN KEY (sensor_id) REFERENCES ${bankTable}(id) ON DELETE CASCADE
                     );`);
 
+                    // Create IntervalControl table per subsite
+                    const intervalControlTable = `IntervalControl_${companyId}_${subsiteId}`;
+                    db.run(`
+                      CREATE TABLE IF NOT EXISTS ${intervalControlTable} (
+                        sensor_id INTEGER PRIMARY KEY,
+                        is_fetching INTEGER DEFAULT 0,
+                        is_sending INTEGER DEFAULT 0,
+                        FOREIGN KEY (sensor_id) REFERENCES ${sensorTable}(id) ON DELETE CASCADE
+                      );
+                    `, (err) => {
+                        if (err) console.error(`❌ Failed to create ${intervalControlTable}:`, err.message);
+                    });
+
+
+
                     // Insert into SensorBank table
                     for (const row of sensorBank) {
                         db.run(`INSERT OR IGNORE INTO ${bankTable} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

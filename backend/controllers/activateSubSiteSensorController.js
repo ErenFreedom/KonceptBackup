@@ -161,10 +161,10 @@ const getAllActiveSubSiteSensors = async (req, res) => {
     if (!subsiteId) return res.status(400).json({ message: "Sub-site ID is required" });
 
     const token = await getStoredToken();
-    const companyId = await getCompanyIdFromToken();
+    const companyId = await getAdminDetailsFromToken();
 
     // ✅ Cloud request
-    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/active?subsite_id=${subsiteId}`;
+    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/active?subsite_id=${subsiteId}`;
     const cloudResponse = await axios.get(cloudApiUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -214,9 +214,9 @@ const reactivateSubSiteSensor = async (req, res) => {
     }
 
     const token = await getStoredToken();
-    const companyId = await getCompanyIdFromToken();
+    const companyId = await getAdminDetailsFromToken();
 
-    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/reactivate`;
+    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/reactivate`;
     const cloudResponse = await axios.post(
       cloudApiUrl,
       { sensorId, subsiteId },
