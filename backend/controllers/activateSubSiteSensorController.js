@@ -90,23 +90,74 @@ const deactivateSubSiteSensor = async (req, res) => {
       return res.status(400).json({ message: "Sensor ID and Subsite ID required" });
     }
 
-    const { token, companyId } = await getAdminDetailsFromToken();
+    const { token, companyId } = await getAdminDetailsFromToken(req);
 
-    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/deactivate`;
-    await axios.post(cloudApiUrl, { sensorId, subsiteId }, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const controlTable = `IntervalControl_${companyId}_${subsiteId}`;
+    const sensorTable = `Sensor_${companyId}_${subsiteId}`;
 
-    const activeTable = `Sensor_${companyId}_${subsiteId}`;
-    db.run(
-      `UPDATE ${activeTable} SET is_active = 0 WHERE bank_id = ?`,
+    // ✅ Step 1: Safety check — is the sensor currently fetching or sending?
+    db.get(
+      `SELECT id FROM ${sensorTable} WHERE bank_id = ?`,
       [sensorId],
-      (err) => {
-        if (err) {
-          console.error("❌ DB update failed:", err.message);
-          return res.status(500).json({ message: "Local deactivation failed" });
+      (err, sensorRow) => {
+        if (err || !sensorRow) {
+          console.error("❌ Sensor lookup failed:", err?.message);
+          return res.status(404).json({ message: "Sensor not found in local DB" });
         }
-        res.status(200).json({ message: "Sensor deactivated successfully" });
+
+        const localId = sensorRow.id;
+
+        db.get(
+          `SELECT is_fetching, is_sending FROM ${controlTable} WHERE sensor_id = ?`,
+          [localId],
+          async (err, statusRow) => {
+            if (err) {
+              console.error("❌ IntervalControl check failed:", err.message);
+              return res.status(500).json({ message: "Database error while checking IntervalControl" });
+            }
+
+            if (!statusRow) {
+              console.warn("⚠️ No IntervalControl entry found. Proceeding with caution.");
+            } else if (statusRow.is_fetching === 1 || statusRow.is_sending === 1) {
+              return res.status(403).json({
+                message: `❌ Sensor is actively fetching or sending. Please stop it first before deactivating.`,
+                is_fetching: statusRow.is_fetching === 1,
+                is_sending: statusRow.is_sending === 1,
+              });
+            }
+
+            // ✅ Step 2: Call cloud backend to deactivate
+            const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/deactivate`;
+            try {
+              await axios.post(
+                cloudApiUrl,
+                { sensorId, subsiteId },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+
+              // ✅ Step 3: Update local DB
+              db.run(
+                `UPDATE ${sensorTable} SET is_active = 0 WHERE bank_id = ?`,
+                [sensorId],
+                (err) => {
+                  if (err) {
+                    console.error("❌ DB update failed:", err.message);
+                    return res.status(500).json({ message: "Local deactivation failed" });
+                  }
+
+                  console.log(`✅ Sensor ${sensorId} deactivated in sub-site ${subsiteId}`);
+                  return res.status(200).json({ message: "Sensor deactivated successfully" });
+                }
+              );
+            } catch (error) {
+              console.error("❌ Cloud deactivation failed:", error.response?.data || error.message);
+              return res.status(500).json({
+                message: "Failed to deactivate sensor in Cloud",
+                error: error.response?.data || error.message,
+              });
+            }
+          }
+        );
       }
     );
   } catch (err) {

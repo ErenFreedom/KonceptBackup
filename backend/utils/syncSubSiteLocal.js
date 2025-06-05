@@ -85,6 +85,19 @@ const syncAllSubSites = async () => {
                         if (err) console.error(`❌ Failed to create ${intervalControlTable}:`, err.message);
                     });
 
+                    // ✅ Create subsite log table
+                    const logTableName = `SensorLogs_${companyId}_${subsiteId}`;
+                    db.run(`
+                       CREATE TABLE IF NOT EXISTS ${logTableName} (
+                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         sensor_id INTEGER,
+                         log TEXT,
+                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                       );
+                     `, (err) => {
+                        if (err) console.error(`❌ Failed to create log table ${logTableName}:`, err.message);
+                    });
+
 
 
                     // Insert into SensorBank table
