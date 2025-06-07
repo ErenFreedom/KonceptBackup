@@ -131,23 +131,31 @@ const syncAllSubSites = async () => {
                             });
                     }
                 });
-
-                // Create SensorData tables (empty rows)
                 for (const bankId of sensorDataBankIds) {
                     const tableName = `SensorData_${companyId}_${subsiteId}_${bankId}`;
-                    db.run(`CREATE TABLE IF NOT EXISTS ${tableName} (
+                    const sensorTable = `Sensor_${companyId}_${subsiteId}`;
+
+                    const createTableSQL = `
+                        CREATE TABLE IF NOT EXISTS ${tableName} (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         sensor_id INTEGER NOT NULL,
                         value TEXT,
                         quality TEXT,
                         quality_good BOOLEAN,
                         timestamp TEXT NOT NULL,
-                        FOREIGN KEY (sensor_id) REFERENCES ${sensorTable}(bank_id) ON DELETE CASCADE
-                    );`, (err) => {
-                        if (err) console.error(`❌ Failed to create table ${tableName}:`, err.message);
+                        sent_to_cloud BOOLEAN DEFAULT 0,
+                        FOREIGN KEY (sensor_id) REFERENCES ${sensorTable}(id) ON DELETE CASCADE
+                        );
+                    `;
+
+                    db.run(createTableSQL, (err) => {
+                        if (err) {
+                            console.error(`❌ Failed to create table ${tableName}:`, err.message);
+                        } else {
+                            console.log(`✅ Created sub-site sensor data table: ${tableName}`);
+                        }
                     });
                 }
-
                 console.log(`✅ Synced sub-site ${subsiteId} (SensorBank: ${sensorBank.length}, ActiveSensors: ${activeSensors.length}, APIs: ${sensorApis.length})`);
             }
         });

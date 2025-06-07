@@ -1,6 +1,6 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
-const { insertLog } = require("../utils/logHelpersSubSite");
+const { insertSubsiteLog } = require("../utils/logHelpersSubSite");
 const intervalManager = require("../utils/intervalManagerSubSite");
 const { db } = require("../db/sensorDB");
 require("dotenv").config();
@@ -34,7 +34,7 @@ const sendSubsiteDataToCloud = async (subsiteId, bank_id) => {
       (err, sensorRow) => {
         if (err || !sensorRow) {
           console.error(`❌ Sensor ${bank_id} not found or inactive in sub-site`, err?.message);
-          insertLog(bank_id, `❌ Sensor ${bank_id} not active in Sensor_${companyId}_${subsiteId}`);
+          insertSubsiteLog(bank_id, `❌ Sensor ${bank_id} not active in Sensor_${companyId}_${subsiteId}`,  companyId, subsiteId);
           return;
         }
 
@@ -48,7 +48,7 @@ const sendSubsiteDataToCloud = async (subsiteId, bank_id) => {
           (err) => {
             if (err) {
               console.error("❌ Failed to update IntervalControl:", err.message);
-              insertLog(bank_id, `❌ Failed IntervalControl update: ${err.message}`);
+              insertSubsiteLog(bank_id, `❌ Failed IntervalControl update: ${err.message}`,companyId, subsiteId);
               return;
             }
 
@@ -65,12 +65,12 @@ const sendSubsiteDataToCloud = async (subsiteId, bank_id) => {
                       [batch_size],
                       async (err, rows) => {
                         if (err) {
-                          insertLog(bank_id, `❌ Fetch error: ${err.message}`);
+                          insertSubsiteLog(bank_id, `❌ Fetch error: ${err.message}`, companyId, subsiteId);
                           return;
                         }
 
                         if (rows.length < batch_size) {
-                          insertLog(bank_id, `⏳ Waiting for batch. Needed: ${batch_size}, Found: ${rows.length}`);
+                          insertSubsiteLog(bank_id, `⏳ Waiting for batch. Needed: ${batch_size}, Found: ${rows.length}`, companyId, subsiteId);
                           return;
                         }
 
@@ -82,40 +82,36 @@ const sendSubsiteDataToCloud = async (subsiteId, bank_id) => {
                         try {
                           const response = await axios.post(
                             `${process.env.CLOUD_API_URL}/api/subsite/sensor-data/receive-data`,
-                            {
-                              companyId,
-                              subsiteId,
-                              sensorId: bank_id,
-                              batch: sanitizedBatch
-                            },
-                            {
-                              headers: { Authorization: `Bearer ${await getStoredToken()}` }
-                            }
+                            { companyId, subsiteId, sensorId: bank_id, batch: sanitizedBatch },
+                            { headers: { Authorization: `Bearer ${await getStoredToken()}` } }
                           );
 
-                          insertLog(bank_id, `✅ Sub-site batch sent to cloud. Count: ${rows.length}`);
+                          console.log("🌐 Cloud Response:", response.data);
+                          insertSubsiteLog(bank_id, `✅ Sub-site batch sent. Count: ${rows.length}. Response: ${JSON.stringify(response.data)}`, companyId, subsiteId);
+
                           const ids = rows.map(row => row.id).join(",");
                           db.run(`UPDATE ${tableName} SET sent_to_cloud = 1 WHERE id IN (${ids})`);
                         } catch (err) {
-                          insertLog(bank_id, `❌ Cloud error: ${err.message}`);
+                          console.error("❌ Cloud error:", err.response?.data || err.message);
+                          insertSubsiteLog(bank_id, `❌ Cloud error: ${err.response?.data?.message || err.message}`, companyId, subsiteId);
                         }
                       }
                     );
                   }
                 );
               } catch (intervalCrash) {
-                insertLog(bank_id, `❌ Send interval crash: ${intervalCrash.message}`);
+                insertSubsiteLog(bank_id, `❌ Send interval crash: ${intervalCrash.message}`, companyId, subsiteId);
               }
             }, interval_seconds * 1000);
 
-            insertLog(bank_id, `🚀 Started cloud send for sub-site sensor every ${interval_seconds}s`);
+            insertSubsiteLog(bank_id, `🚀 Started cloud send for sub-site sensor every ${interval_seconds}s`, companyId, subsiteId);
           }
         );
       }
     );
   } catch (err) {
     console.error("❌ sendSubsiteDataToCloud outer error:", err.message);
-    insertLog(bank_id, `❌ sendSubsiteDataToCloud outer error: ${err.message}`);
+    insertSubsiteLog(undefined, `❌ sendSubsiteDataToCloud outer error: ${err.message}`, companyId, subsiteId);
   }
 };
 
@@ -138,7 +134,7 @@ const stopSubsiteJobs = (req, res) => {
   getCompanyIdFromToken().then(companyId => {
     db.get(`SELECT id FROM Sensor_${companyId}_${subsite_id} WHERE bank_id = ?`, [sensor_id], (err, row) => {
       if (err || !row) {
-        insertLog(sensor_id, `❌ Cannot stop: not found in Sensor_${companyId}_${subsite_id}`);
+        insertSubsiteLog(sensor_id, `❌ Cannot stop: not found in Sensor_${companyId}_${subsite_id}`, companyId, subsite_id);
         return res.status(404).json({ message: `Sensor not found in sub-site` });
       }
 
@@ -149,14 +145,14 @@ const stopSubsiteJobs = (req, res) => {
         [localId],
         function (err) {
           if (err) {
-            insertLog(sensor_id, `❌ Stop failed: ${err.message}`);
+            insertSubsiteLog(sensor_id, `❌ Stop failed: ${err.message}`, companyId, subsite_id);
             return res.status(500).json({ message: "Failed to stop jobs." });
           }
 
           intervalManager.stopSend(sensor_id);
           intervalManager.stopFetch(sensor_id);
 
-          insertLog(sensor_id, `🛑 Jobs stopped for sub-site sensor.`);
+          insertSubsiteLog(sensor_id, `🛑 Jobs stopped for sub-site sensor.`, companyId, subsite_id);
           return res.status(200).json({ message: `Stopped jobs for sensor ${sensor_id}` });
         }
       );
