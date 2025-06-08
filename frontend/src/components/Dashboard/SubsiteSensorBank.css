@@ -1,0 +1,194 @@
+.subsite-sensor-bank {
+    text-align: center;
+    padding: 20px;
+    color: white;
+}
+
+.subsite-sensor-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* 🖥️ 4-column layout by default */
+    gap: 20px;
+    padding: 20px;
+}
+
+/* ✅ Sensor Card Styling */
+.subsite-sensor-card {
+    background-color: #ffffff;
+    color: #000000;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 250px;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s ease-in-out;
+}
+
+.subsite-sensor-card:hover {
+    transform: scale(1.05);
+}
+
+/* ✅ Active Indicator */
+.subsite-active-indicator {
+    color: #00ff88;
+    margin-left: 6px;
+    font-size: 1.2rem;
+    vertical-align: middle;
+    font-weight: bold;
+}
+
+/* ✅ Add Sensor Button Styling */
+.subsite-sensor-card.add-sensor {
+    background-color: #f5f5f5;
+    cursor: pointer;
+    justify-content: center;
+}
+
+.subsite-sensor-card.add-sensor:hover {
+    background-color: #e5e5e5;
+}
+
+.subsite-sensor-card .plus-sign {
+    font-size: 36px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.subsite-sensor-card .add-text {
+    font-size: 16px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* ✅ Dropdown Styling */
+.subsite-dropdown {
+    position: relative;
+    display: inline-block;
+    width: 80%;
+}
+
+.subsite-dropdown-button {
+    background-color: #ffcc00;
+    color: black;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 5px;
+    width: 100%;
+    font-weight: bold;
+}
+
+.subsite-dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: white;
+    min-width: 100%;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    z-index: 1;
+}
+
+.subsite-dropdown-content button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.subsite-dropdown-content button:hover {
+    background-color: #f1f1f1;
+}
+
+.subsite-dropdown-content button:disabled {
+    background-color: #e0e0e0;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.subsite-dropdown:hover .subsite-dropdown-content {
+    display: block;
+}
+
+/* ✅ Modal Overlay */
+.subsite-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+
+/* ✅ Modal Box */
+.subsite-modal-content {
+    background: white;
+    color: black;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    width: 400px;
+    font-size: 16px;
+}
+
+/* ✅ Modal Inputs */
+.subsite-modal-content input {
+    width: 90%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+/* ✅ Modal Buttons */
+.confirm-button {
+    background-color: green;
+    color: white;
+    padding: 10px;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+    border-radius: 5px;
+    width: 100%;
+}
+
+.confirm-button:hover {
+    background-color: darkgreen;
+}
+
+.close-button {
+    background-color: red;
+    color: white;
+    padding: 8px;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+    border-radius: 5px;
+    width: 100%;
+}
+
+.close-button:hover {
+    background-color: darkred;
+}
+
+/* 📱 Responsive Layout */
+@media (max-width: 1024px) {
+    .subsite-sensor-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .subsite-sensor-grid {
+        grid-template-columns: 1fr;
+    }
+}

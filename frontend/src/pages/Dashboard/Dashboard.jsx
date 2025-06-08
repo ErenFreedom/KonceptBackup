@@ -10,14 +10,19 @@ import Footer from "../../components/Footer/Footer";
 import { FaUserCircle } from "react-icons/fa";
 import SensorBank from "../../components/Dashboard/Sensorbank"; // ✅ Importing SensorBank
 import ActiveSensor from "../../components/Dashboard/ActiveSensor"; // ✅ Importing ActiveSensor
+import SubsiteSensorBank from "../../components/Dashboard/SubsiteSensorBank";
+import SubsiteActiveSensor from "../../components/Dashboard/SubsiteActiveSensor";
 
 const Dashboard = () => {
-  const { id } = useParams(); // ✅ Extract Admin ID from URL
+  const { id } = useParams();
   const navigate = useNavigate();
   const [admin, setAdmin] = useState(null);
-  const [activeTab, setActiveTab] = useState("sensor-bank"); // ✅ Default to Sensor Bank view
+  const [subSites, setSubSites] = useState([]);
+  const [selectedSite, setSelectedSite] = useState({ name: "Main Site", id: null });
+  const [activeTab, setActiveTab] = useState("sensor-bank");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [desigoHealth, setDesigoHealth] = useState(null); // ✅ null = unknown, true = healthy, false = disconnected
+  const [showSiteDropdown, setShowSiteDropdown] = useState(false);
+  const [desigoHealth, setDesigoHealth] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("adminToken");
@@ -31,24 +36,20 @@ const Dashboard = () => {
     try {
       const decoded = jwtDecode(token);
 
-      console.log("🔍 Decoded Token Data:", decoded);
-      console.log("🔍 URL Admin ID:", id);
-
       if (decoded.adminId.toString() !== id.toString()) {
-        console.error("❌ Unauthorized access! Token ID does not match URL ID.");
         toast.error("Unauthorized access!");
         localStorage.removeItem("adminToken");
         navigate("/login");
         return;
       }
 
-
       setAdmin({
         id: decoded.adminId,
         firstName: decoded.firstName,
-        lastName: decoded.lastName,
+        companyName: decoded.companyName,
       });
 
+      setSubSites(decoded.subSites || []);
     } catch (error) {
       console.error("❌ Error decoding token:", error);
       toast.error("Invalid session. Please log in again.");
@@ -61,19 +62,14 @@ const Dashboard = () => {
     const checkDesigoHealth = async () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/api/desigo/heartbeat`);
-        if (res.status === 200) {
-          setDesigoHealth(true); // ✅ Trust 200 regardless of body
-        } else {
-          setDesigoHealth(false);
-        }
-      } catch (error) {
-        console.error("Failed to check Desigo health:", error.message);
+        setDesigoHealth(res.status === 200);
+      } catch {
         setDesigoHealth(false);
       }
     };
 
-    checkDesigoHealth(); // Initial
-    const interval = setInterval(checkDesigoHealth, 10000); // every 10 seconds
+    checkDesigoHealth();
+    const interval = setInterval(checkDesigoHealth, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -87,14 +83,32 @@ const Dashboard = () => {
           <img src={logo} alt="Logo" className="dashboard-logo" />
         </div>
 
-        {/* ✅ Right Side - Profile Icon & Home */}
+        {/* ✅ Site Switcher */}
+        <div className="site-dropdown-container">
+          <button className="site-dropdown-button" onClick={() => setShowSiteDropdown(prev => !prev)}>
+            📍 {selectedSite.name}
+          </button>
+          {showSiteDropdown && (
+            <div className="site-dropdown-list">
+              <button onClick={() => setSelectedSite({ name: "Main Site", id: null })}>
+                🌐 Main Site ({admin.companyName})
+              </button>
+              {subSites.map(site => (
+                <button
+                  key={site.subSiteId}
+                  onClick={() => setSelectedSite({ name: site.subSiteName, id: site.subSiteId })}
+                >
+                  🏢 {site.subSiteName}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ✅ Right Side - Profile & Health */}
         <div className="dashboard-button-container">
           <div className="dashboard-profile-wrapper">
-            <FaUserCircle
-              className="dashboard-profile-icon"
-              onClick={() => setShowDropdown(prev => !prev)}
-            />
-
+            <FaUserCircle className="dashboard-profile-icon" onClick={() => setShowDropdown(prev => !prev)} />
             {showDropdown && (
               <div className="dashboard-dropdown">
                 <button
@@ -108,16 +122,11 @@ const Dashboard = () => {
                 >
                   🚪 Logout
                 </button>
-                <button
-                  className="dashboard-dropdown-item"
-                  onClick={() => toast.info("Edit Info coming soon.")}
-                >
+                <button className="dashboard-dropdown-item" onClick={() => toast.info("Edit Info coming soon.")}>
                   ✏️ Edit Info
                 </button>
               </div>
             )}
-
-
           </div>
 
           <div className="dashboard-health-indicator" title="Desigo Server Health">
@@ -152,14 +161,17 @@ const Dashboard = () => {
         {/* ✅ Page Content Switching */}
         <div className="dashboard-page-content">
           {activeTab === "sensor-bank" ? (
-            <SensorBank /> // ✅ Display SensorBank component when active
+            selectedSite.id
+              ? <SubsiteSensorBank selectedSite={selectedSite} />
+              : <SensorBank selectedSite={selectedSite} />
           ) : (
-            <ActiveSensor /> // ✅ Display ActiveSensor component when active
+            selectedSite.id
+              ? <SubsiteActiveSensor selectedSite={selectedSite} />
+              : <ActiveSensor selectedSite={selectedSite} />
           )}
         </div>
       </div>
 
-      {/* ✅ Footer Section */}
       <Footer />
     </div>
   );
