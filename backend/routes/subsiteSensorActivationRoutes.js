@@ -15,8 +15,8 @@ router.post("/activate", activateSubSiteSensor);
 router.post("/deactivate", deactivateSubSiteSensor);
 
 router.post("/remove", removeSubSiteSensor);
-
 router.get("/active", getAllActiveSubSiteSensors);
+
 
 router.post("/reactivate", reactivateSubSiteSensor);
 

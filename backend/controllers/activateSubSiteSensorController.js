@@ -12,10 +12,25 @@ const getStoredToken = () => {
   });
 };
 
-const getAdminDetailsFromToken = async () => {
-  const token = await getStoredToken();
-  const decoded = jwt.verify(token, process.env.JWT_SECRET_APP);
-  return { token, companyId: decoded.companyId };
+const getAdminDetailsFromToken = (req) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_APP);
+
+    const companyId = decoded.companyId;
+    const adminId = decoded.adminId;
+    const subSites = decoded.subSites;
+
+    if (!companyId) return null;
+
+    return { companyId, adminId, subSites };
+  } catch (err) {
+    console.error("❌ Token decoding failed:", err.message);
+    return null;
+  }
 };
 
 const activateSubSiteSensor = async (req, res) => {
@@ -211,17 +226,24 @@ const getAllActiveSubSiteSensors = async (req, res) => {
     const { subsiteId } = req.query;
     if (!subsiteId) return res.status(400).json({ message: "Sub-site ID is required" });
 
-    const token = await getStoredToken();
-    const companyId = await getAdminDetailsFromToken();
+    const adminDetails = getAdminDetailsFromToken(req);
+    if (!adminDetails) {
+      return res.status(401).json({ message: "Invalid or missing token" });
+    }
 
-    // ✅ Cloud request
+    const { companyId } = adminDetails;
+
+    // ✅ Cloud API call
     const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/active?subsite_id=${subsiteId}`;
+    const frontendToken = req.headers.authorization;
+
     const cloudResponse = await axios.get(cloudApiUrl, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: frontendToken },
     });
+
     const cloudSensors = cloudResponse.data?.sensors || [];
 
-    // ✅ Local sub-site table
+    // ✅ Local DB query
     const localTable = `Sensor_${companyId}_${subsiteId}`;
     const localSensors = await new Promise((resolve, reject) => {
       db.all(
@@ -229,7 +251,7 @@ const getAllActiveSubSiteSensors = async (req, res) => {
         [],
         (err, rows) => {
           if (err) {
-            console.error("❌ Error fetching from Local DB:", err.message);
+            console.error("❌ Local DB error:", err.message);
             return reject("Failed to fetch local sub-site sensors");
           }
           resolve(rows);
@@ -237,6 +259,7 @@ const getAllActiveSubSiteSensors = async (req, res) => {
       );
     });
 
+    // ✅ Merge both
     const enrichedSensors = cloudSensors.map(sensor => {
       const local = localSensors.find(l => Number(l.bank_id) === Number(sensor.bank_id));
       return {
@@ -251,10 +274,11 @@ const getAllActiveSubSiteSensors = async (req, res) => {
       sensors: enrichedSensors,
     });
   } catch (error) {
-    console.error("❌ Error in getAllActiveSubSiteSensors:", error);
+    console.error("❌ Error in getAllActiveSubSiteSensors:", error.message);
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
+
 
 
 const reactivateSubSiteSensor = async (req, res) => {

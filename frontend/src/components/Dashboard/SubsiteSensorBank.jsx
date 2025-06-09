@@ -178,7 +178,7 @@ const SubsiteSensorBank = ({ selectedSite }) => {
             <div key={sensor?.id || index} className="subsite-sensor-card">
               <p>
                 <strong>Name:</strong> {sensor?.name || "Unknown Sensor"}{" "}
-                {activeSensorIds.includes(sensor.id) && (
+                {activeSensorIds.includes(sensor.bank_id) && (
                   <span className="subsite-active-indicator" title="Sensor is active">✅</span>
                 )}
               </p>
