@@ -5,6 +5,6 @@ const {
   processSubSiteSensorByAPI
 } = require("../controllers/fetchSubsiteSensorDataController");
 
-router.get("/fetch", verifyAuthToken, processSubSiteSensorByAPI);
+router.post("/fetch", verifyAuthToken, processSubSiteSensorByAPI);
 
 module.exports = router;

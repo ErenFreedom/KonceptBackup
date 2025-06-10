@@ -20,16 +20,18 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const { jobStatusMap, setJobStatusMap } = useJobStatus();
   const [isShowingLogs, setIsShowingLogs] = useState(false);
   const [activeSensorStatus, setActiveSensorStatus] = useState({});
+  const [allSensorsWithApi, setAllSensorsWithApi] = useState([]);
 
   const openSendDataModal = async (sensor) => {
-    setSelectedSensor(sensor);  // ✅ simplified
-
-    setShowSendModal(true);
+    setSelectedSensor(sensor); // ✅ set sensor first
 
     try {
+      // ✅ Fetch updated job statuses before showing modal
+      await fetchAllJobStatuses();
+
       const token = localStorage.getItem("adminToken");
       const response = await axios.get("http://localhost:5004/api/subsite/jobs/sensor", {
-        params: { bank_id: sensor.bank_id, subsite_id: subsiteId }, // ✅ both needed
+        params: { bank_id: sensor.bank_id, subsite_id: subsiteId },
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -40,35 +42,38 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
           is_sending: response.data.is_sending,
         },
       }));
+
+      setShowSendModal(true); // ✅ finally open the modal once data is fresh
     } catch (error) {
       console.error("❌ Failed to fetch job status:", error.response?.data || error.message);
+      toast.error("Failed to load job status.");
     }
   };
+
+
+
+
+
 
   const fetchActiveSensors = async () => {
     try {
       const token = localStorage.getItem("adminToken");
 
-      if (!token) {
-        toast.error("Session expired. Please log in again.");
-        return;
-      }
-
       const response = await axios.get(
-        `http://localhost:5004/api/subsite/sensor/active`,
+        "http://localhost:5004/api/subsite/sensor/active",
         {
-          params: { subsite_id: subsiteId }, // ✅ fixed to snake_case
+          params: { subsite_id: subsiteId },
           headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      if (response.data.sensors && Array.isArray(response.data.sensors)) {
-        setSensors(response.data.sensors);
+      if (Array.isArray(response.data.sensors)) {
+        setSensors(response.data.sensors); // ✅ No merge needed
       } else {
         toast.error("Failed to load active sub-site sensors.");
       }
     } catch (error) {
-      console.error("❌ Error fetching sub-site active sensors:", error.response?.data || error.message);
+      console.error("❌ Error fetching sub-site active sensors:", error.message);
       toast.error("Failed to load active sub-site sensors.");
     } finally {
       setLoading(false);
@@ -94,8 +99,9 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const fetchSensorStatus = async () => {
     try {
       const token = localStorage.getItem("adminToken");
+
       const response = await axios.get("http://localhost:5004/api/subsite/interval/status", {
-        params: { subsite_id: subsiteId }, // ✅ explicitly pass subsite_id
+        params: { subsite_id: subsiteId }, // ✅ FIXED HERE
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -108,8 +114,9 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const fetchAllJobStatuses = async () => {
     try {
       const token = localStorage.getItem("adminToken");
+
       const response = await axios.get("http://localhost:5004/api/subsite/jobs/all", {
-        params: { subsite_id: subsiteId }, // ✅ required
+        params: { subsite_id: subsiteId }, // ✅ FIXED HERE
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -148,8 +155,10 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   };
 
   useEffect(() => {
-    fetchActiveSensors();
+    fetchActiveSensors();  // ← no argument needed now
   }, [subsiteId]);
+
+
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -211,160 +220,149 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
     }
   };
 
-  return <div className="subsite-active-sensor">Loading...</div>;
-};
+
+  const reactivateSensor = async (id) => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      await axios.post("http://localhost:5004/api/subsite/sensor/reactivate", { sensorId: id }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      toast.success(`Sensor ${id} reactivated!`);
+      setSensors(prev =>
+        prev.map(sensor => sensor.bank_id === id ? { ...sensor, is_active: 1 } : sensor)
+      );
+    } catch (error) {
+      console.error("❌ Error reactivating sensor:", error.response?.data || error.message);
+      toast.error("Failed to reactivate sensor.");
+    }
+  };
 
 
-const reactivateSensor = async (id) => {
-  try {
-    const token = localStorage.getItem("adminToken");
-    await axios.post("http://localhost:5004/api/subsite/sensor/reactivate", { sensorId: id }, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  const updateSensorSettings = async (sensorId, interval, batch) => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await axios.put("http://localhost:5004/api/subsite/sensor/settings", {
+        sensorId,
+        interval_seconds: Number(interval),
+        batch_size: Number(batch),
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    toast.success(`Sensor ${id} reactivated!`);
-    setSensors(prev =>
-      prev.map(sensor => sensor.bank_id === id ? { ...sensor, is_active: 1 } : sensor)
-    );
-  } catch (error) {
-    console.error("❌ Error reactivating sensor:", error.response?.data || error.message);
-    toast.error("Failed to reactivate sensor.");
-  }
-};
+      toast.success(`✅ Sensor ${sensorId} settings updated!`);
 
-
-const updateSensorSettings = async (sensorId, interval, batch) => {
-  try {
-    const token = localStorage.getItem("adminToken");
-    const response = await axios.put("http://localhost:5004/api/subsite/sensor/settings", {
-      sensorId,
-      interval_seconds: Number(interval),
-      batch_size: Number(batch),
-    }, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    toast.success(`✅ Sensor ${sensorId} settings updated!`);
-
-    setSensors((prev) =>
-      prev.map((sensor) =>
-        sensor.bank_id === sensorId
-          ? { ...sensor, interval_seconds: Number(interval), batch_size: Number(batch) }
-          : sensor
-      )
-    );
-    setSelectedSensor(null);
-  } catch (error) {
-    console.error("❌ Error updating sensor settings:", error.response?.data || error.message);
-    toast.error("Failed to update sensor settings.");
-  }
-};
+      setSensors((prev) =>
+        prev.map((sensor) =>
+          sensor.bank_id === sensorId
+            ? { ...sensor, interval_seconds: Number(interval), batch_size: Number(batch) }
+            : sensor
+        )
+      );
+      setSelectedSensor(null);
+    } catch (error) {
+      console.error("❌ Error updating sensor settings:", error.response?.data || error.message);
+      toast.error("Failed to update sensor settings.");
+    }
+  };
 
 
-const getDesigoToken = async () => {
-  try {
-    const username = localStorage.getItem("desigoUsername");
-    if (!username) {
-      toast.error("No username found in storage.");
+  const getDesigoToken = async () => {
+    try {
+      const username = localStorage.getItem("desigoUsername");
+      if (!username) {
+        toast.error("No username found in storage.");
+        return null;
+      }
+
+      const response = await axios.get("http://localhost:5004/api/desigo/auth/stored-token", {
+        params: { username },
+      });
+
+      return response.data?.token || null;
+    } catch (error) {
+      console.error("❌ Failed to fetch Desigo token:", error.response?.data || error.message);
+      toast.error("Failed to retrieve Desigo token.");
       return null;
     }
-
-    const response = await axios.get("http://localhost:5004/api/desigo/auth/stored-token", {
-      params: { username },
-    });
-
-    return response.data?.token || null;
-  } catch (error) {
-    console.error("❌ Failed to fetch Desigo token:", error.response?.data || error.message);
-    toast.error("Failed to retrieve Desigo token.");
-    return null;
-  }
-};
+  };
 
 
-const fetchAllJobStatuses = async () => {
-  try {
-    const token = localStorage.getItem("adminToken");
-    const response = await axios.get("http://localhost:5004/api/subsite/jobs/all", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    setJobStatusMap(response.data || {});
-  } catch (err) {
-    console.error("❌ Failed to fetch sub-site job statuses:", err.response?.data || err.message);
-  }
-};
 
 
-const startSendingData = async (sensorId, api, subsiteId) => {
-  try {
-    const adminToken = localStorage.getItem("adminToken");
-    const desigoToken = await getDesigoToken();
 
-    if (!desigoToken) {
-      toast.error("Desigo token missing. Cannot start.");
-      return;
-    }
+  const startSendingData = async (sensorId, api, subsiteId) => {
+    try {
+      const adminToken = localStorage.getItem("adminToken");
+      const desigoToken = await getDesigoToken();
 
-    // ✅ Step 1: Trigger sub-site fetch from local server
-    await axios.get("http://localhost:5004/api/subsite/sensor-data/fetch", {
-      params: {
+      if (!desigoToken) {
+        toast.error("Desigo token missing. Cannot start.");
+        return;
+      }
+
+      // ✅ Step 1: Trigger sub-site fetch (POST)
+      await axios.post("http://localhost:5004/api/subsite/sensor-data/fetch", {
         api_endpoint: api,
         sensor_id: sensorId,
         subsite_id: subsiteId,
-      },
-      headers: {
-        Authorization: `Bearer ${adminToken}`,
-        "x-desigo-token": desigoToken,
-      },
-    });
+      }, {
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "x-desigo-token": desigoToken,
+        },
+      });
 
-    // ✅ Step 2: Trigger sub-site send to cloud
-    await axios.post("http://localhost:5004/api/subsite/sensor-data/send", {
-      sensor_id: sensorId,
-      subsite_id: subsiteId,
-    }, {
-      headers: {
-        Authorization: `Bearer ${adminToken}`,
-      },
-    });
+      // ✅ Step 2: Trigger sub-site send to cloud (POST)
+      await axios.post("http://localhost:5004/api/subsite/sensor-data/send", null, {
+        params: {
+          sensor_id: sensorId,
+          subsite_id: subsiteId,
+        },
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
 
-    toast.success("✅ Sensor started sending sub-site data to cloud");
+      toast.success("✅ Sensor started sending sub-site data to cloud");
 
-    // ✅ Step 3: Wait and refresh
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await fetchAllJobStatuses();
-    await fetchSensorStatus();
+      // ✅ Step 3: Wait and refresh
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await fetchAllJobStatuses();
+      await fetchSensorStatus();
 
-  } catch (err) {
-    console.error("❌ Error starting sub-site data send:", err.response?.data || err.message);
-    toast.error("Failed to start sending sub-site data.");
-  }
-};
+    } catch (err) {
+      console.error("❌ Error starting sub-site data send:", err.response?.data || err.message);
+      toast.error("Failed to start sending sub-site data.");
+    }
+  };
+
+  const stopSendingData = async (sensorId, subsiteId) => {
+    try {
+      const token = localStorage.getItem("adminToken");
+
+      await axios.post("http://localhost:5004/api/subsite/sensor-data/stop", null, {
+        params: {
+          sensor_id: sensorId,
+          subsite_id: subsiteId,
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      toast.info("🛑 Sub-site sensor data transmission fully stopped.");
+
+      // ✅ Refresh job status + sensor status instantly
+      await fetchAllJobStatuses();
+      await fetchSensorStatus();
+    } catch (err) {
+      console.error("❌ Failed to stop sub-site data:", err.response?.data || err.message);
+      toast.error("Failed to stop sending sub-site data.");
+    }
+  };
 
 
-const stopSendingData = async (sensorId, subsiteId) => {
-  try {
-    const token = localStorage.getItem("adminToken");
-
-    await axios.post("http://localhost:5004/api/subsite/sensor-data/stop", {
-      sensor_id: sensorId,
-      subsite_id: subsiteId,
-    }, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    toast.info("🛑 Sub-site sensor data transmission fully stopped.");
-
-    // ✅ Wait and refresh
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await fetchAllJobStatuses();
-    await fetchSensorStatus();
-
-  } catch (err) {
-    console.error("❌ Failed to stop sub-site data:", err.response?.data || err.message);
-    toast.error("Failed to stop sending sub-site data.");
-  }
 
 
   return (
@@ -621,6 +619,8 @@ const stopSendingData = async (sensorId, subsiteId) => {
 
 
 };
+
+
 
 
 

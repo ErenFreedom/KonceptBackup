@@ -223,31 +223,39 @@ const removeSubSiteSensor = async (req, res) => {
 
 const getAllActiveSubSiteSensors = async (req, res) => {
   try {
-    const { subsiteId } = req.query;
-    if (!subsiteId) return res.status(400).json({ message: "Sub-site ID is required" });
+    const subsiteId =
+      req.query.subsiteId || req.query.subsite_id || req.query.subSiteId;
+
+    if (!subsiteId) {
+      return res.status(400).json({ message: "Sub-site ID is required" });
+    }
 
     const adminDetails = getAdminDetailsFromToken(req);
     if (!adminDetails) {
-      return res.status(401).json({ message: "Invalid or missing token" });
+      return res.status(401).json({ message: "Unauthorized: Invalid token" });
     }
 
     const { companyId } = adminDetails;
-
-    // ✅ Cloud API call
-    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/active?subsite_id=${subsiteId}`;
     const frontendToken = req.headers.authorization;
 
+    // ✅ Step 1: Cloud API fetch
+    const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/active?subsite_id=${subsiteId}`;
     const cloudResponse = await axios.get(cloudApiUrl, {
       headers: { Authorization: frontendToken },
     });
 
     const cloudSensors = cloudResponse.data?.sensors || [];
 
-    // ✅ Local DB query
-    const localTable = `Sensor_${companyId}_${subsiteId}`;
+    const sensorTable = `Sensor_${companyId}_${subsiteId}`;
+    const apiTable = `SensorAPI_${companyId}_${subsiteId}`;
+
+    // ✅ Step 2: Fetch local settings using correct join (bank_id = sensor_id)
     const localSensors = await new Promise((resolve, reject) => {
       db.all(
-        `SELECT bank_id, interval_seconds, batch_size FROM ${localTable} WHERE is_active = 1`,
+        `SELECT s.bank_id, s.interval_seconds, s.batch_size, a.api_endpoint
+         FROM ${sensorTable} s
+         LEFT JOIN ${apiTable} a ON s.bank_id = a.sensor_id
+         WHERE s.is_active = 1`,
         [],
         (err, rows) => {
           if (err) {
@@ -259,26 +267,27 @@ const getAllActiveSubSiteSensors = async (req, res) => {
       );
     });
 
-    // ✅ Merge both
+    // ✅ Step 3: Merge local with cloud
     const enrichedSensors = cloudSensors.map(sensor => {
       const local = localSensors.find(l => Number(l.bank_id) === Number(sensor.bank_id));
       return {
         ...sensor,
         interval_seconds: local?.interval_seconds || 10,
         batch_size: local?.batch_size || 1,
+        api_endpoint: local?.api_endpoint || "N/A",
       };
     });
 
     res.status(200).json({
-      message: "Fetched sub-site active sensors with local settings",
+      message: "Fetched sub-site active sensors with local settings and API endpoint",
       sensors: enrichedSensors,
     });
+
   } catch (error) {
-    console.error("❌ Error in getAllActiveSubSiteSensors:", error.message);
+    console.error("❌ Error in getAllActiveSubSiteSensors:", error);
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 
 
 const reactivateSubSiteSensor = async (req, res) => {

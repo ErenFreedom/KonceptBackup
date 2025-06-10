@@ -166,7 +166,7 @@ const Dashboard = () => {
               : <SensorBank selectedSite={selectedSite} />
           ) : (
             selectedSite.id
-              ? <SubsiteActiveSensor selectedSite={selectedSite} />
+              ? <SubsiteActiveSensor subsiteId={selectedSite.id} />
               : <ActiveSensor selectedSite={selectedSite} />
           )}
         </div>

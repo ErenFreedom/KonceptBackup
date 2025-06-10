@@ -2,15 +2,29 @@ const { db } = require("../db/sensorDB");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
-/** 🔐 Extract companyId from token */
-const getCompanyIdFromToken = (req) => {
+const getAdminDetailsFromToken = (req) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) return null;
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("❌ Missing or malformed Authorization header");
+      return null;
+    }
+
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_APP);
-    return decoded.companyId;
+
+    if (!decoded.companyId) {
+      console.error("❌ companyId missing in JWT payload:", decoded);
+      return null;
+    }
+
+    return {
+      companyId: decoded.companyId,
+      adminId: decoded.adminId,
+      subSites: decoded.subSites
+    };
   } catch (err) {
-    console.error("❌ JWT decode error:", err.message);
+    console.error("❌ Token decoding failed:", err.message);
     return null;
   }
 };
@@ -19,7 +33,7 @@ const getCompanyIdFromToken = (req) => {
 const getSubsiteSensorJobStatus = (req, res) => {
   const bankId = req.query.bank_id;
   const subsiteId = req.query.subsite_id;
-  const companyId = getCompanyIdFromToken(req);
+  const { companyId } = getAdminDetailsFromToken(req) || {};
 
   if (!bankId || !subsiteId || !companyId) {
     return res.status(400).json({ message: "Missing bank_id or subsite_id or token" });
@@ -55,7 +69,7 @@ const getSubsiteSensorJobStatus = (req, res) => {
 // ✅ Get job status of all sub-site sensors
 const getAllSubsiteSensorJobStatuses = (req, res) => {
   const subsiteId = req.query.subsite_id;
-  const companyId = getCompanyIdFromToken(req);
+  const { companyId } = getAdminDetailsFromToken(req) || {};
 
   if (!subsiteId || !companyId) {
     return res.status(400).json({ message: "Missing subsite_id or token" });

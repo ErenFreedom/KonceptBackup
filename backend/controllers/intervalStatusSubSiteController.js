@@ -5,12 +5,23 @@ require("dotenv").config();
 /** 🔐 Extract companyId from token */
 const getCompanyIdFromToken = (req) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) return null;
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("❌ Missing or malformed Authorization header");
+      return null;
+    }
+
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_APP);
+
+    if (!decoded.companyId) {
+      console.error("❌ companyId missing in JWT payload:", decoded);
+      return null;
+    }
+
     return decoded.companyId;
   } catch (err) {
-    console.error("❌ Invalid JWT token in intervalStatusSubSite:", err.message);
+    console.error("❌ Invalid JWT token:", err.message);
     return null;
   }
 };

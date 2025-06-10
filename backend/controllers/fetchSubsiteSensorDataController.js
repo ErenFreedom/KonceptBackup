@@ -76,7 +76,7 @@ const fetchAndStoreSubSiteSensorData = async (sensor, companyId, subsiteId, desi
 /** ✅ Main Controller to Process Sub-site Sensor Fetch */
 const processSubSiteSensorByAPI = async (req, res) => {
   try {
-    const { api_endpoint, sensor_id, subsite_id } = req.query;
+    const { api_endpoint, sensor_id, subsite_id } = req.body;
     const desigoToken = req.headers["x-desigo-token"];
 
     if (!api_endpoint || !sensor_id || !subsite_id || !desigoToken) {
