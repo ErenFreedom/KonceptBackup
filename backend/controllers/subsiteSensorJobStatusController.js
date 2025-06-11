@@ -56,7 +56,11 @@ const getSubsiteSensorJobStatus = (req, res) => {
     }
 
     if (!row) {
-      return res.status(404).json({ message: "Sensor not found in IntervalControl" });
+      console.warn(`ℹ️ Sensor bank_id=${bankId} not found in IntervalControl — treating as idle`);
+      return res.status(200).json({
+        is_fetching: false,
+        is_sending: false
+      });
     }
 
     return res.status(200).json({

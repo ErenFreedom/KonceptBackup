@@ -55,6 +55,7 @@ const sendSubsiteSensorDataRoutes = require("./routes/sendSubsiteSensorDataRoute
 const subsiteIntervalStatusRoutes = require('./routes/intervalStatusSubSite')
 const sensorSubsiteJobStatusRoutes = require('./routes/subsiteSensorJobStatus');
 const subsiteLogsRoutes = require("./routes/subsiteLogsRoutes");
+const { rehydrateSubsiteIntervals, getAllCompanySubsitePairs } = require("./utils/rehydrateSubsiteIntervals");
 
 /** ✅ Use Routes */
 app.use("/api/admin/auth", cloudAdminAuthRoutes);
@@ -82,6 +83,17 @@ app.use("/api/subsite/logs", subsiteLogsRoutes);
 
 startHeartbeatMonitor();
 rehydrateIntervals();
+
+
+getAllCompanySubsitePairs().then(pairs => {
+  pairs.forEach(({ companyId, subsiteId }) => {
+    rehydrateSubsiteIntervals(companyId, subsiteId);
+  });
+}).catch(err => {
+  console.error("❌ Failed to rehydrate sub-site intervals:", err.message);
+});
+
+
 /** ✅ Health Check */
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Connector App Backend is running!' });

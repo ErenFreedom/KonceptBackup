@@ -21,36 +21,49 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const [isShowingLogs, setIsShowingLogs] = useState(false);
   const [activeSensorStatus, setActiveSensorStatus] = useState({});
   const [allSensorsWithApi, setAllSensorsWithApi] = useState([]);
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
 
   const openSendDataModal = async (sensor) => {
-    setSelectedSensor(sensor); // ✅ set sensor first
+    setSelectedSensor(sensor);
 
     try {
-      // ✅ Fetch updated job statuses before showing modal
-      await fetchAllJobStatuses();
+      await fetchAllJobStatuses(); // 🔁 Ensure latest statuses before modal shows
+
+      const currentStatus = jobStatusMap[sensor.bank_id];
 
       const token = localStorage.getItem("adminToken");
-      const response = await axios.get("http://localhost:5004/api/subsite/jobs/sensor", {
-        params: { bank_id: sensor.bank_id, subsite_id: subsiteId },
-        headers: { Authorization: `Bearer ${token}` },
-      });
 
-      setJobStatusMap((prev) => ({
-        ...prev,
-        [sensor.bank_id]: {
-          is_fetching: response.data.is_fetching,
-          is_sending: response.data.is_sending,
-        },
-      }));
+      // ✅ If job status already exists, refetch to get accurate state
+      if (currentStatus) {
+        const response = await axios.get("http://localhost:5004/api/subsite/jobs/sensor", {
+          params: { bank_id: sensor.bank_id, subsite_id: subsiteId },
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      setShowSendModal(true); // ✅ finally open the modal once data is fresh
+        setJobStatusMap((prev) => ({
+          ...prev,
+          [sensor.bank_id]: {
+            is_fetching: response.data.is_fetching,
+            is_sending: response.data.is_sending,
+          },
+        }));
+      } else {
+        // 🔁 Fallback when job status is not found — assume idle
+        setJobStatusMap((prev) => ({
+          ...prev,
+          [sensor.bank_id]: {
+            is_fetching: false,
+            is_sending: false,
+          },
+        }));
+      }
+
+      setShowSendModal(true);
     } catch (error) {
       console.error("❌ Failed to fetch job status:", error.response?.data || error.message);
       toast.error("Failed to load job status.");
     }
   };
-
-
 
 
 
@@ -292,6 +305,8 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
 
 
   const startSendingData = async (sensorId, api, subsiteId) => {
+    setIsSendingRequest(true); // 🔒 Disable buttons while request runs
+
     try {
       const adminToken = localStorage.getItem("adminToken");
       const desigoToken = await getDesigoToken();
@@ -301,7 +316,7 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
         return;
       }
 
-      // ✅ Step 1: Trigger sub-site fetch (POST)
+      // ✅ Start fetch
       await axios.post("http://localhost:5004/api/subsite/sensor-data/fetch", {
         api_endpoint: api,
         sensor_id: sensorId,
@@ -313,12 +328,11 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
         },
       });
 
-      // ✅ Step 2: Trigger sub-site send to cloud (POST)
-      await axios.post("http://localhost:5004/api/subsite/sensor-data/send", null, {
-        params: {
-          sensor_id: sensorId,
-          subsite_id: subsiteId,
-        },
+      // ✅ Start send
+      await axios.post("http://localhost:5004/api/subsite/sensor-data/send", {
+        sensor_id: sensorId,
+        subsite_id: subsiteId,
+      }, {
         headers: {
           Authorization: `Bearer ${adminToken}`,
         },
@@ -326,26 +340,29 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
 
       toast.success("✅ Sensor started sending sub-site data to cloud");
 
-      // ✅ Step 3: Wait and refresh
+      // ✅ Refresh job status
       await new Promise(resolve => setTimeout(resolve, 1000));
       await fetchAllJobStatuses();
       await fetchSensorStatus();
-
     } catch (err) {
       console.error("❌ Error starting sub-site data send:", err.response?.data || err.message);
       toast.error("Failed to start sending sub-site data.");
+    } finally {
+      setIsSendingRequest(false); // 🔓 Re-enable buttons
     }
   };
 
+
   const stopSendingData = async (sensorId, subsiteId) => {
+    setIsSendingRequest(true); // 🔒
+
     try {
       const token = localStorage.getItem("adminToken");
 
-      await axios.post("http://localhost:5004/api/subsite/sensor-data/stop", null, {
-        params: {
-          sensor_id: sensorId,
-          subsite_id: subsiteId,
-        },
+      await axios.post("http://localhost:5004/api/subsite/sensor-data/stop", {
+        sensor_id: sensorId,
+        subsite_id: subsiteId,
+      }, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -353,12 +370,15 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
 
       toast.info("🛑 Sub-site sensor data transmission fully stopped.");
 
-      // ✅ Refresh job status + sensor status instantly
+      // ✅ Refresh
+      await new Promise(resolve => setTimeout(resolve, 1000));
       await fetchAllJobStatuses();
       await fetchSensorStatus();
     } catch (err) {
       console.error("❌ Failed to stop sub-site data:", err.response?.data || err.message);
       toast.error("Failed to stop sending sub-site data.");
+    } finally {
+      setIsSendingRequest(false); // 🔓
     }
   };
 
@@ -592,6 +612,7 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
               <button
                 onClick={() => startSendingData(selectedSensor.bank_id, selectedSensor.api_endpoint, subsiteId)}
                 disabled={
+                  isSendingRequest ||
                   jobStatusMap[selectedSensor.bank_id]?.is_sending ||
                   jobStatusMap[selectedSensor.bank_id]?.is_fetching
                 }
@@ -601,8 +622,9 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
               <button
                 onClick={() => stopSendingData(selectedSensor.bank_id, subsiteId)}
                 disabled={
-                  !jobStatusMap[selectedSensor.bank_id]?.is_sending &&
-                  !jobStatusMap[selectedSensor.bank_id]?.is_fetching
+                  isSendingRequest ||
+                  (!jobStatusMap[selectedSensor.bank_id]?.is_sending &&
+                    !jobStatusMap[selectedSensor.bank_id]?.is_fetching)
                 }
               >
                 🛑 Stop Sending

@@ -117,7 +117,7 @@ const sendSubsiteDataToCloud = async (subsiteId, bank_id) => {
 
 /** ✅ Trigger Sub-site Sending */
 const triggerSendSubsiteData = async (req, res) => {
-  const { subsite_id, sensor_id } = req.query;
+  const { subsite_id, sensor_id } = req.body;
   if (!subsite_id || !sensor_id)
     return res.status(400).json({ message: "subsite_id and sensor_id are required" });
 
