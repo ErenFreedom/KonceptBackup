@@ -41,7 +41,11 @@ const activateSubSiteSensor = async (req, res) => {
       return res.status(400).json({ message: "Sensor ID and Subsite ID required" });
     }
 
-    const { token, companyId } = await getAdminDetailsFromToken();
+    const adminDetails = getAdminDetailsFromToken(req);
+    if (!adminDetails) return res.status(401).json({ message: "Unauthorized" });
+
+    const { companyId } = adminDetails;
+    const token = await getStoredToken();
     const interval = interval_seconds ?? 10;
     const batch = batch_size ?? 5;
 
@@ -98,19 +102,28 @@ const activateSubSiteSensor = async (req, res) => {
   }
 };
 
+
 const deactivateSubSiteSensor = async (req, res) => {
   try {
     const { sensorId, subsiteId } = req.body;
+
     if (!sensorId || !subsiteId) {
       return res.status(400).json({ message: "Sensor ID and Subsite ID required" });
     }
 
-    const { token, companyId } = await getAdminDetailsFromToken(req);
+    // ✅ Extract admin info for local DB use
+    const adminDetails = getAdminDetailsFromToken(req);
+    if (!adminDetails) {
+      return res.status(401).json({ message: "Unauthorized: Invalid token" });
+    }
+
+    const { companyId } = adminDetails;
+    const frontendToken = req.headers.authorization;
 
     const controlTable = `IntervalControl_${companyId}_${subsiteId}`;
     const sensorTable = `Sensor_${companyId}_${subsiteId}`;
 
-    // ✅ Step 1: Safety check — is the sensor currently fetching or sending?
+    // ✅ Step 1: Safety check — ensure sensor is not actively fetching/sending
     db.get(
       `SELECT id FROM ${sensorTable} WHERE bank_id = ?`,
       [sensorId],
@@ -147,7 +160,7 @@ const deactivateSubSiteSensor = async (req, res) => {
               await axios.post(
                 cloudApiUrl,
                 { sensorId, subsiteId },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers: { Authorization: frontendToken } }
               );
 
               // ✅ Step 3: Update local DB
@@ -181,6 +194,7 @@ const deactivateSubSiteSensor = async (req, res) => {
   }
 };
 
+
 const removeSubSiteSensor = async (req, res) => {
   try {
     const { sensorId, subsiteId } = req.body;
@@ -188,11 +202,18 @@ const removeSubSiteSensor = async (req, res) => {
       return res.status(400).json({ message: "Sensor ID and Subsite ID required" });
     }
 
-    const { token, companyId } = await getAdminDetailsFromToken();
+    const adminDetails = getAdminDetailsFromToken(req);
+    if (!adminDetails) {
+      return res.status(401).json({ message: "Unauthorized: Invalid token" });
+    }
+
+    const { companyId } = adminDetails;
+    const frontendToken = req.headers.authorization;
+
     const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/remove`;
 
     await axios.post(cloudApiUrl, { sensorId, subsiteId }, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: frontendToken },
     });
 
     const activeTable = `Sensor_${companyId}_${subsiteId}`;
@@ -202,15 +223,20 @@ const removeSubSiteSensor = async (req, res) => {
       `DELETE FROM ${activeTable} WHERE bank_id = ?`,
       [sensorId],
       (err) => {
-        if (err) console.error(`❌ Failed to delete from ${activeTable}:`, err.message);
-        else {
-          db.run(`DROP TABLE IF EXISTS ${sensorTableName}`, async (dropErr) => {
-            if (dropErr) console.error(`❌ Failed to drop table ${sensorTableName}:`, dropErr.message);
-            else {
-              res.status(200).json({ message: "Sensor removed and table dropped" });
-            }
-          });
+        if (err) {
+          console.error(`❌ Failed to delete from ${activeTable}:`, err.message);
+          return res.status(500).json({ message: "Deletion failed" });
         }
+
+        db.run(`DROP TABLE IF EXISTS ${sensorTableName}`, (dropErr) => {
+          if (dropErr) {
+            console.error(`❌ Failed to drop table ${sensorTableName}:`, dropErr.message);
+            return res.status(500).json({ message: "Drop table failed" });
+          }
+
+          console.log(`✅ Sensor ${sensorId} removed and table dropped.`);
+          return res.status(200).json({ message: "Sensor removed and table dropped" });
+        });
       }
     );
   } catch (err) {
@@ -218,7 +244,6 @@ const removeSubSiteSensor = async (req, res) => {
     res.status(500).json({ message: "Removal failed", error: err.message });
   }
 };
-
 
 
 const getAllActiveSubSiteSensors = async (req, res) => {
@@ -297,14 +322,17 @@ const reactivateSubSiteSensor = async (req, res) => {
       return res.status(400).json({ message: "Sensor ID and sub-site ID are required" });
     }
 
-    const token = await getStoredToken();
-    const companyId = await getAdminDetailsFromToken();
+    const adminDetails = getAdminDetailsFromToken(req);
+    if (!adminDetails) return res.status(401).json({ message: "Unauthorized" });
+
+    const { companyId } = adminDetails;
+    const frontendToken = req.headers.authorization;
 
     const cloudApiUrl = `${process.env.CLOUD_API_URL}/api/subsite/sensor/activation/reactivate`;
     const cloudResponse = await axios.post(
       cloudApiUrl,
       { sensorId, subsiteId },
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: frontendToken } }
     );
 
     console.log("✅ Sub-site sensor reactivated in Cloud:", cloudResponse.data);
@@ -330,7 +358,6 @@ const reactivateSubSiteSensor = async (req, res) => {
 };
 
 
-
 const updateSubSiteSensorSettings = async (req, res) => {
   try {
     const { sensorId, subsiteId, interval_seconds, batch_size } = req.body;
@@ -339,7 +366,12 @@ const updateSubSiteSensorSettings = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const { companyId } = await getAdminDetailsFromToken();
+    const adminDetails = getAdminDetailsFromToken(req);
+    if (!adminDetails) {
+      return res.status(401).json({ message: "Unauthorized: Invalid token" });
+    }
+
+    const { companyId } = adminDetails;
     const tableName = `Sensor_${companyId}_${subsiteId}`;
 
     db.run(
@@ -368,6 +400,5 @@ const updateSubSiteSensorSettings = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 module.exports = { activateSubSiteSensor, deactivateSubSiteSensor, removeSubSiteSensor, getAllActiveSubSiteSensors, reactivateSubSiteSensor, updateSubSiteSensorSettings };

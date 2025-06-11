@@ -55,7 +55,7 @@ const SubsiteSensorBank = ({ selectedSite }) => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        const ids = response.data?.sensors?.map(sensor => sensor.bank_id) || [];
+        const ids = response.data?.sensors?.map(sensor => sensor.id) || [];
         setActiveSensorIds(ids);
       } catch (error) {
         console.error("❌ Error fetching active sensors:", error);
@@ -67,7 +67,7 @@ const SubsiteSensorBank = ({ selectedSite }) => {
 
   // ✅ Activate Sub-site Sensor
   const activateSensor = async () => {
-    if (!selectedSensor || activeSensorIds.includes(selectedSensor.id)) {
+    if (!selectedSensor || activeSensorIds.includes(selectedSensor.bank_id)) {
       toast.error("Sensor is already activated.");
       return;
     }
@@ -165,138 +165,138 @@ const SubsiteSensorBank = ({ selectedSite }) => {
 
   // 🧠 UI/return section comes next
   return (
-  <div className="subsite-sensor-bank">
-    <h2>Sub-site Sensor Bank: {selectedSite?.name}</h2>
-    <div className="subsite-sensor-grid">
-      {loading ? (
-        <p>Loading sensors...</p>
-      ) : sensors.length > 0 ? (
-        sensors.map((sensor, index) => {
-          if (!sensor) return null;
+    <div className="subsite-sensor-bank">
+      <h2>Sub-site Sensor Bank: {selectedSite?.name}</h2>
+      <div className="subsite-sensor-grid">
+        {loading ? (
+          <p>Loading sensors...</p>
+        ) : sensors.length > 0 ? (
+          sensors.map((sensor, index) => {
+            if (!sensor) return null;
 
-          return (
-            <div key={sensor?.id || index} className="subsite-sensor-card">
-              <p>
-                <strong>Name:</strong> {sensor?.name || "Unknown Sensor"}{" "}
-                {activeSensorIds.includes(sensor.bank_id) && (
-                  <span className="subsite-active-indicator" title="Sensor is active">✅</span>
-                )}
-              </p>
-
-              <p><strong>ID:</strong> {sensor?.id || "N/A"}</p>
-
-              <div className="subsite-dropdown">
-                <button className="subsite-dropdown-button">Options ▼</button>
-                <div className="subsite-dropdown-content">
-                  <button onClick={() => showInfo(sensor)}>ℹ️ Show Info</button>
-
-                  {activeSensorIds.includes(sensor.id) ? (
-                    <button disabled title="Already activated" style={{ opacity: 0.5, cursor: "not-allowed" }}>
-                      🚫 Activate
-                    </button>
-                  ) : (
-                    <button onClick={() => openActivateModal(sensor)}>⚡ Activate</button>
+            return (
+              <div key={sensor?.id || index} className="subsite-sensor-card">
+                <p>
+                  <strong>Name:</strong> {sensor?.name || "Unknown Sensor"}{" "}
+                  {activeSensorIds.includes(sensor.bank_id) && (
+                    <span className="subsite-active-indicator" title="Sensor is active">✅</span>
                   )}
+                </p>
 
-                  <button onClick={() => deleteSensor(sensor)}>🗑 Delete</button>
+                <p><strong>ID:</strong> {sensor?.id || "N/A"}</p>
+
+                <div className="subsite-dropdown">
+                  <button className="subsite-dropdown-button">Options ▼</button>
+                  <div className="subsite-dropdown-content">
+                    <button onClick={() => showInfo(sensor)}>ℹ️ Show Info</button>
+
+                    {activeSensorIds.includes(sensor.bank_id) ? (
+                      <button disabled title="Already activated" style={{ opacity: 0.5, cursor: "not-allowed" }}>
+                        🚫 Activate
+                      </button>
+                    ) : (
+                      <button onClick={() => openActivateModal(sensor)}>⚡ Activate</button>
+                    )}
+
+                    <button onClick={() => deleteSensor(sensor)}>🗑 Delete</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })
-      ) : (
-        <p>No sensors available.</p>
+            );
+          })
+        ) : (
+          <p>No sensors available.</p>
+        )}
+
+        {/* ➕ "Add Sensor" Card */}
+        <div className="subsite-sensor-card add-sensor" onClick={() => setShowAddModal(true)}>
+          <span className="plus-sign">+</span>
+          <p className="add-text">Add Sensor</p>
+        </div>
+      </div>
+
+      {/* ➕ Add Sensor Modal */}
+      {showAddModal && (
+        <div className="subsite-modal">
+          <div className="subsite-modal-content">
+            <h3>Add New Sub-site Sensor</h3>
+
+            <input
+              type="text"
+              placeholder="Sensor API URL"
+              value={sensorApi}
+              onChange={(e) => setSensorApi(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Sensor Name"
+              value={sensorName}
+              onChange={(e) => setSensorName(e.target.value)}
+            />
+            <input
+              type="number"
+              placeholder="Rate Limit"
+              value={rateLimit}
+              onChange={(e) => setRateLimit(e.target.value)}
+            />
+
+            <button className="confirm-button" onClick={addSensor}>Add Sensor</button>
+            <button className="close-button" onClick={() => setShowAddModal(false)}>Close</button>
+          </div>
+        </div>
       )}
 
-      {/* ➕ "Add Sensor" Card */}
-      <div className="subsite-sensor-card add-sensor" onClick={() => setShowAddModal(true)}>
-        <span className="plus-sign">+</span>
-        <p className="add-text">Add Sensor</p>
-      </div>
+      {/* ℹ️ Info Modal */}
+      {showInfoModal && selectedSensor && (
+        <div className="subsite-modal">
+          <div className="subsite-modal-content">
+            <h3>Sensor Info</h3>
+            <p><strong>Name:</strong> {selectedSensor.name}</p>
+            <p><strong>ID:</strong> {selectedSensor.id}</p>
+            <p><strong>Description:</strong> {selectedSensor.description || "No description provided"}</p>
+            <p><strong>Created At:</strong> {selectedSensor.created_at || "N/A"}</p>
+            <p>
+              <strong>Sensor API:</strong> {selectedSensor.api_endpoint}
+              <button
+                onClick={() => navigator.clipboard.writeText(selectedSensor.api_endpoint)}
+                style={{ marginLeft: "10px" }}
+                title="Copy to clipboard"
+              >
+                📋
+              </button>
+            </p>
+            <button className="close-button" onClick={() => setShowInfoModal(false)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* ⚡ Activate Modal */}
+      {showActivateModal && selectedSensor && (
+        <div className="subsite-modal">
+          <div className="subsite-modal-content">
+            <h3>Activate Sensor</h3>
+            <p><strong>Sensor:</strong> {selectedSensor.name}</p>
+
+            <input
+              type="number"
+              placeholder="Interval Seconds"
+              value={activateInterval}
+              onChange={(e) => setActivateInterval(e.target.value)}
+            />
+            <input
+              type="number"
+              placeholder="Batch Size"
+              value={activateBatch}
+              onChange={(e) => setActivateBatch(e.target.value)}
+            />
+
+            <button className="confirm-button" onClick={activateSensor}>Confirm Activation</button>
+            <button className="close-button" onClick={() => setShowActivateModal(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
-
-    {/* ➕ Add Sensor Modal */}
-    {showAddModal && (
-      <div className="subsite-modal">
-        <div className="subsite-modal-content">
-          <h3>Add New Sub-site Sensor</h3>
-
-          <input
-            type="text"
-            placeholder="Sensor API URL"
-            value={sensorApi}
-            onChange={(e) => setSensorApi(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Sensor Name"
-            value={sensorName}
-            onChange={(e) => setSensorName(e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Rate Limit"
-            value={rateLimit}
-            onChange={(e) => setRateLimit(e.target.value)}
-          />
-
-          <button className="confirm-button" onClick={addSensor}>Add Sensor</button>
-          <button className="close-button" onClick={() => setShowAddModal(false)}>Close</button>
-        </div>
-      </div>
-    )}
-
-    {/* ℹ️ Info Modal */}
-    {showInfoModal && selectedSensor && (
-      <div className="subsite-modal">
-        <div className="subsite-modal-content">
-          <h3>Sensor Info</h3>
-          <p><strong>Name:</strong> {selectedSensor.name}</p>
-          <p><strong>ID:</strong> {selectedSensor.id}</p>
-          <p><strong>Description:</strong> {selectedSensor.description || "No description provided"}</p>
-          <p><strong>Created At:</strong> {selectedSensor.created_at || "N/A"}</p>
-          <p>
-            <strong>Sensor API:</strong> {selectedSensor.api_endpoint}
-            <button
-              onClick={() => navigator.clipboard.writeText(selectedSensor.api_endpoint)}
-              style={{ marginLeft: "10px" }}
-              title="Copy to clipboard"
-            >
-              📋
-            </button>
-          </p>
-          <button className="close-button" onClick={() => setShowInfoModal(false)}>Close</button>
-        </div>
-      </div>
-    )}
-
-    {/* ⚡ Activate Modal */}
-    {showActivateModal && selectedSensor && (
-      <div className="subsite-modal">
-        <div className="subsite-modal-content">
-          <h3>Activate Sensor</h3>
-          <p><strong>Sensor:</strong> {selectedSensor.name}</p>
-
-          <input
-            type="number"
-            placeholder="Interval Seconds"
-            value={activateInterval}
-            onChange={(e) => setActivateInterval(e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Batch Size"
-            value={activateBatch}
-            onChange={(e) => setActivateBatch(e.target.value)}
-          />
-
-          <button className="confirm-button" onClick={activateSensor}>Confirm Activation</button>
-          <button className="close-button" onClick={() => setShowActivateModal(false)}>Cancel</button>
-        </div>
-      </div>
-    )}
-  </div>
-);
+  );
 
 
 };

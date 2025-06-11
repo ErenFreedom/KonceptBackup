@@ -197,12 +197,20 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const deactivateSensor = async (id) => {
     try {
       const token = localStorage.getItem("adminToken");
-      await axios.post("http://localhost:5004/api/subsite/sensor/deactivate", { sensorId: id }, {
+
+      await axios.post("http://localhost:5004/api/subsite/sensor/deactivate", {
+        sensorId: id,
+        subsiteId: subsiteId, // ✅ You must pass this (from context or props/state)
+      }, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       toast.success(`Sensor ${id} deactivated!`);
-      setSensors((prev) => prev.map((sensor) => sensor.bank_id === id ? { ...sensor, is_active: 0 } : sensor));
+      setSensors((prev) =>
+        prev.map((sensor) =>
+          sensor.bank_id === id ? { ...sensor, is_active: 0 } : sensor
+        )
+      );
     } catch (error) {
       console.error("❌ Error deactivating sensor:", error.response?.data || error.message);
       toast.error("Failed to deactivate sensor.");
@@ -212,15 +220,18 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const removeSensor = async (id) => {
     try {
       const token = localStorage.getItem("adminToken");
-      const response = await axios.post("http://localhost:5004/api/subsite/sensor/remove", { sensorId: id }, {
+
+      await axios.post("http://localhost:5004/api/subsite/sensor/remove", {
+        sensorId: id,
+        subsiteId, // ✅ must be passed
+      }, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       toast.success(`✅ Sensor ${id} removed successfully.`);
-      setSensors((prev) => prev.filter((s) => s.id !== id));
+      setSensors((prev) => prev.filter((s) => s.bank_id !== id)); // ✅ changed from s.id to s.bank_id
     } catch (error) {
       const errorMsg = error.response?.data?.message || error.message || "Failed to remove sensor.";
-
       if (errorMsg.toLowerCase().includes("must be deactivated")) {
         toast.error("⚠️ Please deactivate the sensor before removing it.");
       } else if (errorMsg.toLowerCase().includes("not found")) {
@@ -228,7 +239,6 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
       } else {
         toast.error(`❌ ${errorMsg}`);
       }
-
       console.error("❌ Error removing sensor:", errorMsg);
     }
   };
@@ -237,7 +247,11 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const reactivateSensor = async (id) => {
     try {
       const token = localStorage.getItem("adminToken");
-      await axios.post("http://localhost:5004/api/subsite/sensor/reactivate", { sensorId: id }, {
+
+      await axios.post("http://localhost:5004/api/subsite/sensor/reactivate", {
+        sensorId: id,
+        subsiteId, // ✅ required
+      }, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -255,8 +269,10 @@ const SubsiteActiveSensor = ({ subsiteId }) => {
   const updateSensorSettings = async (sensorId, interval, batch) => {
     try {
       const token = localStorage.getItem("adminToken");
-      const response = await axios.put("http://localhost:5004/api/subsite/sensor/settings", {
+
+      await axios.put("http://localhost:5004/api/subsite/sensor/settings", {
         sensorId,
+        subsiteId, // ✅ must be passed
         interval_seconds: Number(interval),
         batch_size: Number(batch),
       }, {

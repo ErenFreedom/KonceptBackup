@@ -127,7 +127,7 @@ const triggerSendSubsiteData = async (req, res) => {
 
 /** ✅ Stop Sub-site Fetch and Send */
 const stopSubsiteJobs = (req, res) => {
-  const { subsite_id, sensor_id } = req.query;
+  const { subsite_id, sensor_id } = req.body;
   if (!subsite_id || !sensor_id)
     return res.status(400).json({ message: "subsite_id and sensor_id are required to stop" });
 

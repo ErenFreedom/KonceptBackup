@@ -180,6 +180,8 @@
     background-color: darkred;
 }
 
+
+
 /* 📱 Responsive Layout */
 @media (max-width: 1024px) {
     .subsite-sensor-grid {
